@@ -62,5 +62,6 @@ jobs:
           TAG: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
         run: |
-          rsync -az --delete -e 'ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes' dist/ site-deploy@lqycustomsite.online:/srv/project-deployments/monitoring-platform/.staging/$TAG/
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes site-deploy@lqycustomsite.online "/usr/local/bin/deploy-static prepare monitoring-platform $TAG"
+          rsync -azc --delete --itemize-changes -e 'ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes' dist/ site-deploy@lqycustomsite.online:/srv/project-deployments/monitoring-platform/.staging/$TAG/
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes site-deploy@lqycustomsite.online "/usr/local/bin/deploy-static publish monitoring-platform $TAG $SHA"
