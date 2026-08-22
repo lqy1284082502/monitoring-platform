@@ -23,6 +23,7 @@ import * as TWEEN from '@tweenjs/tween.js';
 import type { Mesh } from 'three';
 import vertexShader from '@/shaders/mapFilters/vertexShader.glsl?raw';
 import fragmentShader from '@/shaders/mapFilters/fragmentShader.glsl?raw';
+import { publicUrl } from '@/utils/publicUrl';
 
 // 城市边界shader
 import cityVertexShader from '@/shaders/cityBoundaries/vertexShader.glsl?raw';
@@ -33,7 +34,6 @@ import mixVertexShader from '@/shaders/mixPass/vertexShader.glsl?raw';
 import mixFragmentShader from '@/shaders/mixPass/fragmentShader.glsl?raw';
 
 const BLOOM_SCENE = 1;
-const baseUrl = window.location.origin;
 /**
  * three初始场景
  * */
@@ -69,8 +69,8 @@ export class GeoJsonLoad extends ThreeScene {
         this.camera.position.set(-296, 143, 88);
         this.camera.updateProjectionMatrix();
         // 初始化加载器
-        this.textureLoader = new THREE.TextureLoader().setPath(baseUrl + '/textures/');
-        this.fileLoader = new THREE.FileLoader().setPath(baseUrl + '/');
+        this.textureLoader = new THREE.TextureLoader().setPath(publicUrl('textures/'));
+        this.fileLoader = new THREE.FileLoader().setPath(import.meta.env.BASE_URL);
         // 设置辉光体层级为1
         this.bloomLayer.set(BLOOM_SCENE);
     }
@@ -89,7 +89,7 @@ export class GeoJsonLoad extends ThreeScene {
         this.controls.autoRotate = true;
         this.controls.autoRotateSpeed = 0.2;
 
-        this.loadHDRI(baseUrl + '/textures/gainmap/spruit_sunrise_4k.jpg').then(() => {
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
             this.scene.background = null;
             // this.scene.environment = null;
             this.loadTheSkybox();
@@ -117,14 +117,14 @@ export class GeoJsonLoad extends ThreeScene {
      * */
     private LoadingGeoJson() {
         // 加载地图侧边纹理
-        const texture = this.textureLoader.load('/bg.jpg');
+        const texture = this.textureLoader.load('bg.jpg');
         texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
         texture.offset.set(0, 0.1);
         texture.repeat.set(0.1, 0.1);
         // 旋转纹理 180度
         texture.rotation = Math.PI;
 
-        this.fileLoader.load('/models/map/cd.json', (data) => {
+        this.fileLoader.load('models/map/cd.json', (data) => {
             if (typeof data !== 'string') return;
 
             // 数据格式化
@@ -411,7 +411,7 @@ export class GeoJsonLoad extends ThreeScene {
      * 加载天空盒
      * */
     private loadTheSkybox() {
-        const cubeLoader = new THREE.CubeTextureLoader().setPath('/textures/type1/');
+        const cubeLoader = new THREE.CubeTextureLoader().setPath(publicUrl('textures/type1/'));
         const skyboxTexTures = ['posx.jpg', 'negx.jpg', 'posy.jpg', 'negy.jpg', 'posz.jpg', 'negz.jpg'];
         this.scene.background = cubeLoader.load(skyboxTexTures);
     }

@@ -1,8 +1,8 @@
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { publicUrl } from '@/utils/publicUrl';
 
-const baseUrl = window.location.origin;
 export class CityRadar extends ThreeScene {
     private geometries: THREE.BoxGeometry[] = [];
     private shaders: THREE.Shader[] = [];
@@ -15,7 +15,7 @@ export class CityRadar extends ThreeScene {
             transparent: true,
         });
         this.camera.position.set(-178.82247507543786, 74.90429441486798, -5.721143063003789);
-        this.loadHDRI('/textures/gainmap/spruit_sunrise_4k.jpg').then(() => {
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
             this.scene.background = null;
         });
     }
@@ -43,7 +43,7 @@ export class CityRadar extends ThreeScene {
             this.geometries.push(geometry);
         }
         const mergedGeometry = mergeGeometries(this.geometries, false);
-        const texture = new THREE.TextureLoader().load(baseUrl + '/image/image.jpg');
+        const texture = new THREE.TextureLoader().load(publicUrl('image/image.jpg'));
         texture.wrapS = texture.wrapT = THREE.MirroredRepeatWrapping;
         const material = new THREE.MeshStandardMaterial({ map: texture, transparent: true });
         const cube = new THREE.Mesh(mergedGeometry, material);

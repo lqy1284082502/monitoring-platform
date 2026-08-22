@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { publicUrl } from '@/utils/publicUrl';
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
 // import { MeshBasicNodeMaterial, vec4, color, positionLocal, mix } from 'three/nodes';
 // import { nodeFrame } from 'three/addons/renderers/webgl-legacy/nodes/WebGLNodes.js';
@@ -10,7 +11,7 @@ export class LightMapping extends ThreeScene {
         this.camera.position.set(700, 200, -500);
         this.camera.updateProjectionMatrix();
         // 设置HDR贴图
-        this.loadHDRI('/textures/gainmap/spruit_sunrise_4k.jpg').then(() => {
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
             this.scene.background = new THREE.Color(0x000000);
         });
     }
@@ -26,7 +27,7 @@ export class LightMapping extends ThreeScene {
 
         // 修改摄像机默认参数
         const loader = new THREE.ObjectLoader();
-        const object = await loader.loadAsync('/models/json/lightmap/lightmap.json');
+        const object = await loader.loadAsync(publicUrl('models/json/lightmap/lightmap.json'));
         this.scene.add(object);
         this.controls!.enableZoom = false;
         this.controls!.maxPolarAngle = (0.9 * Math.PI) / 2;

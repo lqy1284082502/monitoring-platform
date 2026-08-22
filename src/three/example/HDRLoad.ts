@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
+import { publicUrl } from '@/utils/publicUrl';
 
 /**
  * three初始场景
@@ -7,7 +8,7 @@ import { ThreeScene } from '@/three/commonClass/ThreeScene';
 export class HDRLoad extends ThreeScene {
     constructor(dom: HTMLElement) {
         super(dom);
-        this.loadHDRI('/textures/gainmap/spruit_sunrise_4k.jpg').then();
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then();
     }
     init() {
         const geometry = new THREE.TorusKnotGeometry(18, 8, 200, 40, 1, 3);

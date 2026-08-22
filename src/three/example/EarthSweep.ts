@@ -1,5 +1,6 @@
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
 import * as THREE from 'three';
+import { publicUrl } from '@/utils/publicUrl';
 import vertexShader from '@/shaders/earthSweep/vertexShader.glsl?raw';
 import fragmentShader from '@/shaders/earthSweep/fragmentShader.glsl?raw';
 
@@ -14,7 +15,7 @@ export class EarthSweep extends ThreeScene {
         };
         this.setCameraProps(cameraDefault);
         this.camera.position.set(37, 0, 60);
-        this.loadHDRI('/textures/gainmap/spruit_sunrise_4k.jpg').then(() => {
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
             this.scene.background = null;
         });
     }
@@ -25,7 +26,7 @@ export class EarthSweep extends ThreeScene {
     // 初始化地球
     public initEarth() {
         const geometry = new THREE.SphereGeometry(16, 32, 32);
-        const texture = new THREE.TextureLoader().load('/textures/world.jpg');
+        const texture = new THREE.TextureLoader().load(publicUrl('textures/world.jpg'));
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
         const material = new THREE.MeshStandardMaterial({

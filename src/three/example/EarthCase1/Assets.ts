@@ -12,7 +12,9 @@ export interface IResources {
     textures?: ITextures[];
 }
 
-const filePath = '/image/earth/';
+import { publicUrl } from '@/utils/publicUrl';
+
+const filePath = publicUrl('image/earth/');
 const fileSuffix = ['gradient', 'redCircle', 'label', 'aperture', 'glow', 'light_column', 'aircraft'];
 
 const textures = fileSuffix.map((item) => ({

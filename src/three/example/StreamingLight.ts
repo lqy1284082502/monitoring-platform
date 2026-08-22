@@ -1,6 +1,7 @@
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
 import lineJson from '@/assets/json/lines.json';
 import * as THREE from 'three';
+import { publicUrl } from '@/utils/publicUrl';
 
 export class StreamingLight extends ThreeScene {
     private textureArray: THREE.Texture[] = [];
@@ -32,7 +33,7 @@ export class StreamingLight extends ThreeScene {
         lineJson.features.forEach((item) => {
             const imgUrl = item.subway ? item.subway : 'line1';
             // 纹理贴图
-            const texture = new THREE.TextureLoader().load(window.location.origin + `/image/line/${imgUrl}.png`, function (tex) {
+            const texture = new THREE.TextureLoader().load(publicUrl(`image/line/${imgUrl}.png`), function (tex) {
                 tex.needsUpdate = true;
                 tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
                 tex.repeat.set(1, 1);

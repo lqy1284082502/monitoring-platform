@@ -1,6 +1,7 @@
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { publicUrl } from '@/utils/publicUrl';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
@@ -108,7 +109,7 @@ export class CameraRender extends ThreeScene {
         // 设置渲染器抗锯齿
         // this.renderer.antialias = true;
         const hdrLoader = new RGBELoader();
-        hdrLoader.load('/textures/gainmap/metro_noord_4k.hdr', (texture) => {
+        hdrLoader.load(publicUrl('textures/gainmap/metro_noord_4k.hdr'), (texture) => {
             const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
             this.scene.environment = pmremGenerator.fromEquirectangular(texture).texture;
             texture.dispose(); // 释放纹理内存
@@ -119,10 +120,10 @@ export class CameraRender extends ThreeScene {
     }
     public init() {
         const dracoLoader = new DRACOLoader();
-        dracoLoader.setDecoderPath('/draco/gltf/');
+        dracoLoader.setDecoderPath(publicUrl('draco/gltf/'));
         const loader = new GLTFLoader();
         loader.setDRACOLoader(dracoLoader);
-        loader.load('/models/item/camera.glb', (gltf) => {
+        loader.load(publicUrl('models/item/camera.glb'), (gltf) => {
             const model = gltf.scene;
             model.position.set(1, 1, 0);
             model.traverse((child) => {

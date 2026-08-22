@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { publicUrl } from '@/utils/publicUrl';
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
 
 /**
@@ -44,7 +45,7 @@ export class TestScenario extends ThreeScene {
         const planeGeometry = new THREE.PlaneGeometry(200, 200);
         // 加载纹理
         const textureLoader = new THREE.TextureLoader();
-        const texture = textureLoader.load('/textures/uv_grid_opengl.jpg');
+        const texture = textureLoader.load(publicUrl('textures/uv_grid_opengl.jpg'));
         const planeMaterial = new THREE.MeshBasicMaterial({ map: texture });
 
         const plane = new THREE.Mesh(planeGeometry, planeMaterial);

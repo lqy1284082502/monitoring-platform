@@ -6,6 +6,7 @@ import Stats from 'three/addons/libs/stats.module.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import * as d3 from 'd3';
 import type { WebGLRendererParameters } from 'three';
+import { publicUrl } from '@/utils/publicUrl';
 
 interface IConfig {
     rendererConfig?: WebGLRendererParameters;
@@ -86,7 +87,7 @@ export class ThreeScene {
      * 加载HDR贴图
      * */
     public loadHDRI(url?: string): Promise<THREE.Texture> {
-        const urlStr = url ? url : '/textures/gainmap/spruit_sunrise_4k.jpg';
+        const urlStr = url ? url : publicUrl('textures/gainmap/spruit_sunrise_4k.jpg');
         return new Promise((resolve, reject) => {
             this.hdrLoader = new HDRJPGLoader(this.renderer);
             const hdrJpgLoad = this.hdrLoader.load(urlStr, (texture) => {

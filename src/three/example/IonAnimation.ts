@@ -1,5 +1,6 @@
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
 import * as THREE from 'three';
+import { publicUrl } from '@/utils/publicUrl';
 import * as TWEEN from '@tweenjs/tween.js';
 
 export class IonAnimation extends ThreeScene {
@@ -21,7 +22,7 @@ export class IonAnimation extends ThreeScene {
             this.combineCube(geometry);
         }, 10000);
         const materials = [];
-        const texture = new THREE.TextureLoader().load('/textures/109951164579600342.png');
+        const texture = new THREE.TextureLoader().load(publicUrl('textures/109951164579600342.png'));
         materials[0] = new THREE.PointsMaterial({
             transparent: true,
             map: texture,

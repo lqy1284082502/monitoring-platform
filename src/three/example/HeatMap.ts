@@ -1,5 +1,6 @@
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
 import * as THREE from 'three';
+import { publicUrl } from '@/utils/publicUrl';
 import * as TWEEN from '@tweenjs/tween.js';
 import type * as IHeatMap from '../interface/IHeatMap';
 
@@ -18,7 +19,7 @@ export class HeatMap extends ThreeScene {
 
     private initHeatMap(): Promise<{ canvas: any; option: any }> {
         return new Promise((resolve) => {
-            fetch('/json/traffic.json')
+            fetch(publicUrl('json/traffic.json'))
                 .then((res) => res.json())
                 .then((data: any) => {
                     const info: IHeatMap.InfoType = {

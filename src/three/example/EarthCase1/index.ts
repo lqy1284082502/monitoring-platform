@@ -22,6 +22,7 @@ import airVertex from '@/shaders/earthCase1/air/vertexShader.glsl?raw';
 import airFragment from '@/shaders/earthCase1/air/fragmentShader.glsl?raw';
 import { Resources } from '@/three/example/EarthCase1/Resources.ts';
 import gsap from 'gsap';
+import { publicUrl } from '@/utils/publicUrl';
 
 type uniforms = {
     glowColor: { value: Color };
@@ -59,7 +60,7 @@ export class EarthCase1 extends EarthUtilsCaseOne {
             map: { value: null },
         };
         this.group.scale.set(0, 0, 0);
-        this.loadHDRI('/textures/gainmap/spruit_sunrise_4k.jpg').then(() => {
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
             this.scene.background = null;
         });
     }
