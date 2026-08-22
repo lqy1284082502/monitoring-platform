@@ -1,0 +1,20 @@
+@startuml
+class Scene  {
+    +scene: Scene
+    ~constructor()
+    +add(object: Object)
+    +remove(object: Object)
+    +getScene(): Scene
+}
+
+note right of Scene::add
+    添加物体到场景中
+end note
+note right of Scene::remove
+    从场景中移除物体
+end note
+note right of Scene::getScene
+    获取场景
+end note
+
+@enduml

@@ -1,0 +1,17 @@
+@startuml
+class ClassFactory {
+  +createClass(className: String): Class
+  +init(className: String,dom:HTMLElement): void
+}
+
+note left of ClassFactory::createClass
+  匹配className，返回对应的Class
+end note
+note left of ClassFactory::init
+  传入className和dom，调用对应的init方法
+end note
+
+note bottom of ClassFactory
+  用于创建Class实例,提供给总览页面使用
+end note
+@enduml

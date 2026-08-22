@@ -1,0 +1,8 @@
+@startuml
+ class Css3dRenderer {
+  +main(args: String[]): void
+ }
+note top of Css3dRenderer
+  Css3渲染器，用于渲染3D场景
+end note
+@enduml

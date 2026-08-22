@@ -1,0 +1,17 @@
+@startuml
+'https://plantuml.com/class-diagram
+
+class Render {
+    + instance
+    ~constructor(dom:HTMLElement)
+    + getRender():Render
+}
+
+    note left of Render::instance
+      render对象实例
+    end note
+    note right of Render::getRender
+      获取一个render对象
+    end note
+
+@enduml

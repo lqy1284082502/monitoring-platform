@@ -1,0 +1,21 @@
+@startuml
+!include ../baseClass/BaseThreeJSWrapper.puml
+!include ../baseClass/Light.puml
+!include ../baseClass/Css2dRenderer.puml
+!include ../baseClass/Css3dRenderer.puml
+!include ./ClassFactory.puml
+
+class OtherJSWrapper extends BaseThreeJSWrapper {
+  + constructor()
+  + void init()
+  + void animate()
+  + void onWindowResize()
+  }
+
+  Light -[dashed]-> OtherJSWrapper :[引用]
+  OtherJSWrapper -[dashed]-> ClassFactory :[引用]
+  Css2dRenderer -[dashed]-> OtherJSWrapper :[引用]
+  Css3dRenderer -[dashed]-> OtherJSWrapper :[引用]
+  Css2dRenderer -[dashed]-> BaseThreeJSWrapper :[引用]
+  Css3dRenderer -[dashed]-> BaseThreeJSWrapper :[引用]
+@enduml
