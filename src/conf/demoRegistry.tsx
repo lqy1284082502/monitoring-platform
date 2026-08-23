@@ -152,7 +152,7 @@ export const demoRegistry: DemoDefinition[] = [
         path: '/item/earth-case1',
         thumbnail: { path: 'previews/earth-case1.webp', waitMs: 2500 },
         Component: createDemo(
-            () => import('@/three/example/EarthCase1'),
+            () => import('@/three/example/EarthCase1/index.ts'),
             ({ EarthCase1 }) => EarthCase1
         ),
     },

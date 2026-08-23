@@ -4,7 +4,9 @@ import * as THREE from 'three';
 import { publicUrl } from '@/utils/publicUrl';
 
 export class StreamingLight extends ThreeScene {
-    private textureArray: THREE.Texture[] = [];
+    private readonly animatedTextures: Array<{ speed: number; texture: THREE.Texture }> = [];
+    private readonly textureCache = new Map<string, THREE.Texture>();
+    private readonly materialCache = new Map<string, THREE.MeshBasicMaterial>();
     constructor(dom: HTMLElement) {
         super(dom);
     }
@@ -30,37 +32,33 @@ export class StreamingLight extends ThreeScene {
 
     // 流光效果
     public streamingLight() {
+        const textureLoader = new THREE.TextureLoader();
         lineJson.features.forEach((item) => {
             const imgUrl = item.subway ? item.subway : 'line1';
-            // 纹理贴图
-            const texture = new THREE.TextureLoader().load(publicUrl(`image/line/${imgUrl}.png`), function (tex) {
-                tex.needsUpdate = true;
-                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                tex.repeat.set(1, 1);
-            });
-            // 线条材质
-            const material = new THREE.MeshBasicMaterial({
-                map: texture,
-                side: THREE.BackSide,
-                transparent: true,
-            });
+            let texture = this.textureCache.get(imgUrl);
+            let material = this.materialCache.get(imgUrl);
+            if (!texture || !material) {
+                texture = textureLoader.load(publicUrl(`image/line/${imgUrl}.png`));
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, transparent: true });
+                this.textureCache.set(imgUrl, texture);
+                this.materialCache.set(imgUrl, material);
+                this.animatedTextures.push({ speed: 0.16 + this.animatedTextures.length * 0.008, texture });
+            }
             const points = item.geometry.coordinates.map((point: number[]) => {
                 return new THREE.Vector3((point[1] - 23) * 300, 0, (point[0] - 113) * 300);
             });
             // 曲线
             const curve = new THREE.CatmullRomCurve3(points);
             // 曲线几何体
-            const tubeGeometry = new THREE.TubeGeometry(curve, 100, 0.2, 20);
+            const tubeGeometry = new THREE.TubeGeometry(curve, 100, 0.2, 8);
             const mesh = new THREE.Mesh(tubeGeometry, material);
             this.scene.add(mesh);
-            this.textureArray.push(texture);
         });
     }
-    protected update() {
-        if (this.textureArray?.length) {
-            this.textureArray.forEach((texture) => {
-                texture.offset.x -= Math.random() / 200;
-            });
-        }
+    protected update(delta: number) {
+        this.animatedTextures.forEach(({ speed, texture }) => {
+            texture.offset.x = (texture.offset.x - speed * delta) % 1;
+        });
     }
 }

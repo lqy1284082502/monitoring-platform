@@ -1,4 +1,4 @@
-import * as d3 from 'd3';
+import { geoMercator } from 'd3-geo';
 
 export type GeoCoordinate = [number, number];
 
@@ -7,5 +7,5 @@ export function createMercatorProjection({
     scale = 1000,
     translate = [0, 0],
 }: Partial<{ center: GeoCoordinate; scale: number; translate: GeoCoordinate }> = {}) {
-    return d3.geoMercator().center(center).scale(scale).translate(translate);
+    return geoMercator().center(center).scale(scale).translate(translate);
 }

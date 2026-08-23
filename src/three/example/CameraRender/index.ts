@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { publicUrl } from '@/utils/publicUrl';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 export class CameraRender extends ThreeScene {
     // 部件数组
@@ -108,17 +107,7 @@ export class CameraRender extends ThreeScene {
 
         // 设置渲染器抗锯齿
         // this.renderer.antialias = true;
-        const hdrLoader = new RGBELoader();
-        hdrLoader.load(publicUrl('textures/gainmap/metro_noord_4k.hdr'), (texture) => {
-            if (this.isDisposed) {
-                texture.dispose();
-                return;
-            }
-            const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
-            this.scene.environment = pmremGenerator.fromEquirectangular(texture).texture;
-            texture.dispose(); // 释放纹理内存
-            pmremGenerator.dispose(); // 释放生成器内存
-        });
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).catch(() => undefined);
         this.camera.position.set(-106, 56, -90);
         this.setLight();
     }
@@ -127,36 +116,36 @@ export class CameraRender extends ThreeScene {
         dracoLoader.setDecoderPath(publicUrl('draco/gltf/'));
         const loader = new GLTFLoader();
         loader.setDRACOLoader(dracoLoader);
-        loader.load(publicUrl('models/item/camera.glb'), (gltf) => {
-            const model = gltf.scene;
-            if (this.isDisposed) {
-                model.traverse((child) => {
-                    const mesh = child as THREE.Mesh;
-                    mesh.geometry?.dispose();
-                    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-                    materials.filter(Boolean).forEach((material) => material.dispose());
-                });
-                return;
-            }
-            model.position.set(1, 1, 0);
-            model.traverse((child) => {
-                if (child.type === 'Mesh') {
-                    child.visible = this.parts.includes((child as THREE.Mesh).name);
+        loader.load(
+            publicUrl('models/item/camera.glb'),
+            (gltf) => {
+                dracoLoader.dispose();
+                const model = gltf.scene;
+                if (this.isDisposed) {
+                    model.traverse((child) => {
+                        const mesh = child as THREE.Mesh;
+                        mesh.geometry?.dispose();
+                        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                        materials.filter(Boolean).forEach((material) => material.dispose());
+                    });
+                    return;
                 }
-            });
-            // 设置方向
-            model.rotation.set(0, Math.PI / 4, 0);
-            const scale = 30;
-            model.scale.set(scale, scale, scale);
-
-            // 相机看向模型
-            this.camera.lookAt(model.position);
-            this.scene.add(model);
-
-            // 设置自动旋转
-            // this.controls.autoRotate = true;
-            this.controls.autoRotateSpeed = 0.5;
-        });
+                model.position.set(1, 1, 0);
+                model.traverse((child) => {
+                    if (child.type === 'Mesh') {
+                        child.visible = this.parts.includes((child as THREE.Mesh).name);
+                    }
+                });
+                model.rotation.set(0, Math.PI / 4, 0);
+                const scale = 30;
+                model.scale.set(scale, scale, scale);
+                this.camera.lookAt(model.position);
+                this.scene.add(model);
+                this.controls.autoRotateSpeed = 0.5;
+            },
+            undefined,
+            () => dracoLoader.dispose()
+        );
     }
     // 设置光源
     private setLight() {

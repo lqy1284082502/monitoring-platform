@@ -68,13 +68,6 @@ export default ({ mode }: { mode: string }) => {
             },
             rollupOptions: {
                 output: {
-                    manualChunks(id: string) {
-                        //静态资源分拆打包
-                        if (id.includes('node_modules')) {
-                            const name = id.toString().split('node_modules/')[1].split('/')[0].toString();
-                            return 'modules/' + name;
-                        }
-                    },
                     chunkFileNames: 'static/js/[name]-[hash].js',
                     entryFileNames: 'static/js/[name]-[hash].js',
                     assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',

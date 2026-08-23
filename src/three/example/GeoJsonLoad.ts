@@ -1,8 +1,8 @@
 import { ThreeScene } from '@/three/commonClass/ThreeScene';
 import * as THREE from 'three';
 import { Group, LineLoop, MeshBasicMaterial, MeshStandardMaterial, ShaderMaterial, Vector2, Vector3 } from 'three';
-import * as d3 from 'd3';
-import { GeoProjection } from 'd3';
+import { geoMercator } from 'd3-geo';
+import type { GeoProjection } from 'd3-geo';
 import type { GeoJsonCollection } from '@/types/geoJson';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
@@ -27,7 +27,6 @@ import mixVertexShader from '@/shaders/mixPass/vertexShader.glsl?raw';
 import mixFragmentShader from '@/shaders/mixPass/fragmentShader.glsl?raw';
 
 const BLOOM_SCENE = 1;
-const MAX_PIXEL_RATIO = 1.5;
 const BLOOM_RESOLUTION_SCALE = 0.5;
 // Troika parses TTF, OTF, and WOFF files directly; WOFF2 is not supported.
 const FLOATING_LABEL_FONT = publicUrl('fonts/geo-city-labels.woff');
@@ -56,19 +55,20 @@ export class GeoJsonLoad extends ThreeScene {
     // 辉光后期处理
     private bloomComposer: EffectComposer | undefined;
     private fxaaPass: ShaderPass | undefined;
+    private bloomMixPass: ShaderPass | undefined;
     // 需要添加后期的地板
     private floor: Mesh | undefined;
-    // 时间对象
-    private clock = new THREE.Clock();
     // 城市边界材质
     private cityMaterial: ShaderMaterial | undefined;
     // 时间
     private time = 1.0;
-    // 点击border缓存对象
-    private clickedBorder: LineLoop | undefined;
     private readonly handleMapClick = this.handleClick.bind(this);
     private activeFloatingLabel: FloatingCityLabel | undefined;
     private fadingFloatingLabels: FloatingCityLabel[] = [];
+    private selectedProvince: THREE.Group | undefined;
+    private readonly selectableMeshes: THREE.Mesh[] = [];
+    private readonly floatingLabelPosition = new THREE.Vector3();
+    private autoRotateResumeAt = 0;
     constructor(dom: HTMLElement) {
         super(dom);
         this.camera.far = 1500;
@@ -83,7 +83,6 @@ export class GeoJsonLoad extends ThreeScene {
      * 初始化方法
      * */
     public init() {
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
         // 关闭控制拖拽
         this.controls.enablePan = false;
         // 设置控制器的最大最小旋转角度
@@ -103,9 +102,6 @@ export class GeoJsonLoad extends ThreeScene {
                 this.loadTheSkybox();
                 this.addLight();
                 this.createFloor();
-                this.LoadingGeoJson();
-
-                // shader着色器
                 this.cityMaterial = new THREE.ShaderMaterial({
                     uniforms: {
                         time: { value: 0.0 },
@@ -117,6 +113,7 @@ export class GeoJsonLoad extends ThreeScene {
                     vertexShader: cityVertexShader,
                     fragmentShader: cityFragmentShader,
                 });
+                this.LoadingGeoJson();
             })
             .catch(() => undefined);
     }
@@ -140,7 +137,7 @@ export class GeoJsonLoad extends ThreeScene {
             // 数据格式化
             const json: GeoJsonCollection = JSON.parse(data);
             // 创建坐标系获取数据对象
-            const projection = d3.geoMercator().center([104.06, 30.67]).scale(10000).translate([0, 0]);
+            const projection = geoMercator().center([104.06, 30.67]).scale(10000).translate([0, 0]);
             const features = json.features;
             // 遍历数据
             features.forEach((feature) => {
@@ -165,7 +162,7 @@ export class GeoJsonLoad extends ThreeScene {
                     ];
                     // 多个多边形
                     coordinates.forEach((polygon) => {
-                        const { mesh, border } = this.drawExtrudeMesh(polygon[0], projection, materials);
+                        const { mesh, border, glowBorder } = this.drawExtrudeMesh(polygon[0], projection, materials);
                         const group = new THREE.Group();
                         mesh.userData = feature.properties;
                         // if (feature.properties.name === '都江堰市') {
@@ -182,9 +179,11 @@ export class GeoJsonLoad extends ThreeScene {
                         group.add(mesh);
                         // 城市边框
                         group.add(border);
+                        group.add(glowBorder);
                         group.name = feature.properties.name;
 
                         this.province.add(group);
+                        this.selectableMeshes.push(mesh);
                     });
                 }
             });
@@ -195,7 +194,7 @@ export class GeoJsonLoad extends ThreeScene {
             this.map.rotation.x = -Math.PI / 2;
             this.scene.add(this.map);
 
-            this.listen(window, 'click', this.handleMapClick as EventListener);
+            this.listen(this.renderer.domElement, 'click', this.handleMapClick as EventListener);
         });
     }
 
@@ -222,23 +221,24 @@ export class GeoJsonLoad extends ThreeScene {
         };
         const borderGrid = new THREE.BufferGeometry().setFromPoints(points);
         // 创建一个CurvePath
-        const curvePath: THREE.CurvePath<Vector3> = new THREE.CurvePath();
-        points.forEach((point, i) => {
-            if (i < points.length - 1) {
-                curvePath.add(new THREE.LineCurve3(point, points[i + 1]));
-            }
-        });
-
-        const mesh = new THREE.LineLoop(
+        const border = new THREE.LineLoop(
             borderGrid,
             new THREE.MeshBasicMaterial({ color: '#00ff00', polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
         );
 
         const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        const borderCurve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
+        const tubularSegments = THREE.MathUtils.clamp(points.length, 64, 384);
+        const glowGeometry = new THREE.TubeGeometry(borderCurve, tubularSegments, 0.2, 6, true);
+        const glowBorder = new THREE.Mesh(glowGeometry, this.cityMaterial!);
+        glowBorder.visible = false;
+        glowBorder.userData.type = 'glowBorder';
+        glowBorder.layers.enable(BLOOM_SCENE);
 
         return {
             mesh: new THREE.Mesh(geometry, texture),
-            border: mesh,
+            border,
+            glowBorder,
         };
     }
 
@@ -248,53 +248,29 @@ export class GeoJsonLoad extends ThreeScene {
     private handleClick(event: MouseEvent) {
         // 关闭控制器自动旋转
 
-        if (this.clock.autoStart) {
-            this.clock.start();
-            this.controls.autoRotate = false;
-        }
+        this.controls.autoRotate = false;
+        this.autoRotateResumeAt = performance.now() + 30_000;
         // 射线
-        this.mouse.x = (event.clientX / this.viewSize.width) * 2 - 1;
-        this.mouse.y = -(event.clientY / this.viewSize.height) * 2 + 1;
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
         // 通过摄像机和鼠标位置更新射线
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
         // 设置射线的起点和方向
-        const intersects = this.raycaster.intersectObjects(this.province.children);
+        const intersects = this.raycaster.intersectObjects(this.selectableMeshes, false);
         if (intersects.length) {
             this.resetAllProvince();
-            const selectedObject = intersects[0].object.parent;
-            if (selectedObject) {
+            const selectedObject = intersects[0].object.parent as THREE.Group | null;
+            if (selectedObject instanceof THREE.Group) {
+                this.selectedProvince = selectedObject;
                 selectedObject.userData.clieked = true;
                 new TWEEN.Tween(selectedObject.position).to({ x: 0, y: 0, z: 15 }, 500).easing(TWEEN.Easing.Quadratic.InOut).start();
-                // 获取LineLoop对象
-                this.clickedBorder = selectedObject.children.find((child) => child instanceof LineLoop) as LineLoop | undefined;
-                if (this.clickedBorder) {
-                    // 获取 LineLoop 的点
-                    const vertices = this.clickedBorder.geometry.attributes.position.array;
-                    // 创建一个CurvePath
-                    const curvePath: THREE.CurvePath<Vector3> = new THREE.CurvePath();
-                    // 将顶点数据添加到CurvePath中
-                    for (let i = 0; i < vertices.length; i += 3) {
-                        let point = new THREE.Vector3(vertices[i], vertices[i + 1], vertices[i + 2]);
-                        if (i < vertices.length - 3) {
-                            let nextPoint = new THREE.Vector3(vertices[i + 3], vertices[i + 4], vertices[i + 5]);
-                            curvePath.add(new THREE.LineCurve3(point, nextPoint));
-                        }
-                    }
-                    // 使用CurvePath创建TubeGeometry
-                    const tubeGeometry = new THREE.TubeGeometry(curvePath, vertices.length, 0.2, 8, false);
-                    // 创建新的 Mesh
-                    const tubeMesh = new THREE.Mesh(tubeGeometry, this.cityMaterial);
-                    tubeMesh.userData = { type: 'tubeMesh' };
-
-                    // 从父对象中移除 LineLoop
-                    selectedObject.remove(this.clickedBorder);
-
-                    // 将新的 Mesh 添加到父对象中
-                    selectedObject.add(tubeMesh);
-                    tubeMesh.layers.enable(BLOOM_SCENE);
-                }
+                const border = selectedObject.children.find((child) => child instanceof LineLoop);
+                const glowBorder = selectedObject.children.find((child) => child.userData.type === 'glowBorder');
+                if (border) border.visible = false;
+                if (glowBorder) glowBorder.visible = true;
                 this.showFloatingLabel(selectedObject, selectedObject.name);
             }
         } else {
@@ -306,19 +282,15 @@ export class GeoJsonLoad extends ThreeScene {
      * */
     private resetAllProvince() {
         this.hideActiveFloatingLabel();
+        this.selectedProvince = undefined;
         this.province.children.forEach((item) => {
             if (item.userData.clieked) {
                 item.userData.clieked = false;
                 new TWEEN.Tween(item.position).to({ x: 0, y: 0, z: 0 }, 500).easing(TWEEN.Easing.Quadratic.InOut).start();
-                // 获取TubeGeometry对象
-                const tubeMesh = item.children.find((child) => child.userData.type === 'tubeMesh') as Mesh | undefined;
-                if (tubeMesh && this.clickedBorder) {
-                    // 从父对象中移除 TubeGeometry
-                    item.remove(tubeMesh);
-                    // 将 LineLoop 添加到父对象中
-                    item.add(this.clickedBorder);
-                    tubeMesh.geometry.dispose();
-                }
+                const border = item.children.find((child) => child instanceof LineLoop);
+                const glowBorder = item.children.find((child) => child.userData.type === 'glowBorder');
+                if (border) border.visible = true;
+                if (glowBorder) glowBorder.visible = false;
             }
         });
     }
@@ -375,7 +347,7 @@ export class GeoJsonLoad extends ThreeScene {
         label.opacity = THREE.MathUtils.lerp(label.opacity, targetOpacity, transition);
 
         label.anchor.updateWorldMatrix(true, false);
-        const anchorPosition = label.anchor.getWorldPosition(new THREE.Vector3());
+        const anchorPosition = label.anchor.getWorldPosition(this.floatingLabelPosition);
         const hoverOffset = FLOATING_LABEL_HEIGHT + Math.sin(elapsed * 2.4) * FLOATING_LABEL_FLOAT_AMPLITUDE;
         label.text.position.set(anchorPosition.x, anchorPosition.y + hoverOffset, anchorPosition.z);
         label.text.quaternion.copy(this.camera.quaternion);
@@ -400,13 +372,13 @@ export class GeoJsonLoad extends ThreeScene {
 
     protected update(delta: number, elapsed: number) {
         if (this.cityMaterial) {
-            this.time = this.time >= 1 ? 0 : this.time + 0.01;
+            this.time = (this.time + delta * 0.6) % 1;
             this.cityMaterial.uniforms.time.value = this.time;
         }
 
         TWEEN.update();
 
-        if (this.clock.getElapsedTime() > 30) {
+        if (!this.controls.autoRotate && performance.now() >= this.autoRotateResumeAt) {
             this.controls.autoRotate = true;
         }
 
@@ -422,7 +394,9 @@ export class GeoJsonLoad extends ThreeScene {
     }
 
     protected render() {
-        if (this.bloomComposer) {
+        const hasBloomContent = Boolean(this.selectedProvince || this.activeFloatingLabel || this.fadingFloatingLabels.length);
+        if (this.bloomMixPass) this.bloomMixPass.enabled = hasBloomContent;
+        if (hasBloomContent && this.bloomComposer) {
             const previousCameraMask = this.camera.layers.mask;
             const previousBackground = this.scene.background;
             try {
@@ -598,6 +572,7 @@ export class GeoJsonLoad extends ThreeScene {
             }),
             'baseTexture'
         );
+        this.bloomMixPass = mixPass;
         mixPass.needsSwap = true;
 
         this.composer.addPass(renderPass);

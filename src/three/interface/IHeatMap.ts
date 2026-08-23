@@ -15,5 +15,10 @@ export interface IPosition {
     height: number;
     max: number;
     min: number;
-    data: any[];
+    minlng: number;
+    minlat: number;
+    radius: number;
+    size: number;
+    colors: Record<number, string>;
+    data: { lng: number; lat: number; value: number }[];
 }

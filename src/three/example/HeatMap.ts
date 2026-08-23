@@ -8,22 +8,32 @@ import { createMercatorProjection } from '@/three/commonClass/utils/geoProjectio
 import vertexShader from '@/shaders/heatMap/vertexShader.glsl?raw';
 import fragmentShader from '@/shaders/heatMap/fragmentShader.glsl?raw';
 
+interface TrafficCollection {
+    features: Array<{
+        geometry: { coordinates: [number, number] };
+        properties: { avg: number };
+    }>;
+}
+
 export class HeatMap extends ThreeScene {
     private readonly abortController = new AbortController();
+    private heightTween: TWEEN.Tween<{ v: number }> | undefined;
     constructor(dom: HTMLElement) {
         super(dom);
         this.camera.position.set(26.418983330409905, 464.0893611265324, 276.88402793055997);
     }
 
     public init() {
-        this.createChart().then();
+        return this.createChart().catch((error: unknown) => {
+            if (!(error instanceof DOMException && error.name === 'AbortError')) throw error;
+        });
     }
 
-    private initHeatMap(): Promise<{ canvas: any; option: any }> {
+    private initHeatMap(): Promise<{ canvas: HTMLCanvasElement | undefined; option: IHeatMap.IPosition }> {
         return new Promise((resolve, reject) => {
             fetch(publicUrl('json/traffic.json'), { signal: this.abortController.signal })
                 .then((res) => res.json())
-                .then((data: any) => {
+                .then((data: TrafficCollection) => {
                     const info: IHeatMap.InfoType = {
                         max: Number.MIN_SAFE_INTEGER,
                         min: Number.MAX_SAFE_INTEGER,
@@ -34,7 +44,7 @@ export class HeatMap extends ThreeScene {
                         data: [],
                     };
                     const projection = createMercatorProjection({ scale: 1000 });
-                    data.features.forEach((item: any) => {
+                    data.features.forEach((item) => {
                         const pos = projection(item.geometry.coordinates);
                         if (!pos) return;
                         const newItem = { lng: pos[0], lat: pos[1], value: item.properties.avg };
@@ -51,9 +61,9 @@ export class HeatMap extends ThreeScene {
                     info.sizelng = info.maxlng - info.minlng;
                     info.sizelat = info.maxlat - info.minlat;
                     const radius = 40;
-                    const option = {
+                    const option: IHeatMap.IPosition = {
                         width: info.sizelng + radius * 2,
-                        height: info.sizelng + radius * 2,
+                        height: info.sizelat + radius * 2,
                         colors: {
                             0.1: '#2A85B8',
                             0.2: '#16B0A9',
@@ -64,8 +74,11 @@ export class HeatMap extends ThreeScene {
                             0.7: '#FAA53F',
                             1: '#D04343',
                         },
-                        radius,
                         ...info,
+                        radius,
+                        size: info.size,
+                        minlng: info.minlng,
+                        minlat: info.minlat,
                         // x, y 表示二维坐标； value表示强弱值
                     };
                     const canvas = this.createHeatmap(option);
@@ -81,7 +94,8 @@ export class HeatMap extends ThreeScene {
         const map = new THREE.CanvasTexture(heatmapCanvas);
         map.wrapS = THREE.RepeatWrapping;
         map.wrapT = THREE.RepeatWrapping;
-        const geometry = new THREE.PlaneGeometry(option.width * 0.5, option.height * 0.5, 500, 500);
+        const segments = navigator.hardwareConcurrency <= 4 ? 128 : 192;
+        const geometry = new THREE.PlaneGeometry(option.width * 0.5, option.height * 0.5, segments, segments);
         const material = new THREE.ShaderMaterial({
             transparent: true,
             side: THREE.DoubleSide,
@@ -96,9 +110,8 @@ export class HeatMap extends ThreeScene {
         const plane = new THREE.Mesh(geometry, material);
         plane.rotateX(-Math.PI * 0.5);
         this.scene.add(plane);
-        new TWEEN.Tween({ v: 0 })
+        this.heightTween = new TWEEN.Tween({ v: 0 })
             .to({ v: 50 }, 2000)
-
             .onUpdate((obj) => {
                 material.uniforms.uHeight.value = obj.v;
             })
@@ -108,7 +121,13 @@ export class HeatMap extends ThreeScene {
 
     public dispose() {
         this.abortController.abort();
+        this.heightTween?.stop();
+        this.heightTween = undefined;
         super.dispose();
+    }
+
+    protected update() {
+        TWEEN.update();
     }
 
     private createHeatmap(option: IHeatMap.IPosition) {
@@ -118,7 +137,6 @@ export class HeatMap extends ThreeScene {
         canvas.height = option.height;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        option.max = option.max - option.min;
         option.data.forEach((item) => {
             this.drawCircle(ctx, option, item);
         });
@@ -126,8 +144,8 @@ export class HeatMap extends ThreeScene {
         if (!colorData) return;
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         for (let i = 3; i < imageData.data.length; i = i + 4) {
-            let opacity = imageData.data[i];
-            let offset = opacity * 4;
+            const opacity = imageData.data[i];
+            const offset = opacity * 4;
 
             //red
             imageData.data[i - 3] = colorData[offset];
@@ -141,10 +159,10 @@ export class HeatMap extends ThreeScene {
         return canvas;
     }
 
-    private drawCircle(ctx: any, option: any, item: any) {
-        let { lng, lat, value } = item;
-        let x = lng - option.minlng + option.radius;
-        let y = lat - option.minlat + option.radius;
+    private drawCircle(ctx: CanvasRenderingContext2D, option: IHeatMap.IPosition, item: IHeatMap.InfoType['data'][number]) {
+        const { lng, lat, value } = item;
+        const x = lng - option.minlng + option.radius;
+        const y = lat - option.minlat + option.radius;
         const grad = ctx.createRadialGradient(x, y, 0, x, y, option.radius);
         grad.addColorStop(0.0, 'rgba(0,0,0,1)');
         grad.addColorStop(1.0, 'rgba(0,0,0,0)');
@@ -156,7 +174,7 @@ export class HeatMap extends ThreeScene {
         ctx.fill();
     }
 
-    private createColors(option: any) {
+    private createColors(option: IHeatMap.IPosition) {
         const canvas = document.createElement('canvas');
         // document.body.appendChild(canvas);
         const ctx = canvas.getContext('2d');
@@ -164,7 +182,7 @@ export class HeatMap extends ThreeScene {
         canvas.width = 256;
         canvas.height = 1;
         const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-        for (let k in option.colors) {
+        for (const k in option.colors) {
             grad.addColorStop(Number(k), option.colors[k]);
         }
 
