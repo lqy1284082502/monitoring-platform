@@ -16,8 +16,9 @@ export class CitySweep extends ThreeScene {
         });
         this.camera.position.set(-178.82247507543786, 74.90429441486798, -5.721143063003789);
         this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
+            if (this.isDisposed) return;
             this.scene.background = null;
-        });
+        }).catch(() => undefined);
     }
     init() {
         const pg = new THREE.PlaneGeometry(100, 100);

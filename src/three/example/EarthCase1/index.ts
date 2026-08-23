@@ -61,12 +61,14 @@ export class EarthCase1 extends EarthUtilsCaseOne {
         };
         this.group.scale.set(0, 0, 0);
         this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
+            if (this.isDisposed) return;
             this.scene.background = null;
-        });
+        }).catch(() => undefined);
     }
 
     init() {
         this.resources = new Resources(async () => {
+            if (this.isDisposed) return;
             this.createEarth();
             this.createStarts();
             this.createEarthGlow();
@@ -195,5 +197,11 @@ export class EarthCase1 extends EarthUtilsCaseOne {
         if (this.uniforms) {
             this.uniforms.time.value = this.uniforms.time.value < -this.timeValue ? this.timeValue : this.uniforms.time.value - 1;
         }
+    }
+
+    public dispose() {
+        this.resources?.dispose();
+        gsap.killTweensOf(this.group.scale);
+        super.dispose();
     }
 }

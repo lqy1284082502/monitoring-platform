@@ -2,7 +2,6 @@ import { defineConfig, loadEnv } from 'vite';
 import path from 'path';
 import react from '@vitejs/plugin-react';
 import viteCompression from 'vite-plugin-compression';
-import { createSvgIconsPlugin } from 'vite-plugin-svg-icons';
 
 export default ({ mode }: { mode: string }) => {
     const evn = loadEnv(mode, './environment');
@@ -18,13 +17,6 @@ export default ({ mode }: { mode: string }) => {
                 threshold: 10240, // 文件大小大于这个值时启用压缩
                 algorithm: 'gzip', // 压缩算法
                 ext: '.gz', // 生成的压缩包后缀
-            }),
-            // SVG 图标配置
-            createSvgIconsPlugin({
-                // 指定需要缓存的图标文件夹
-                iconDirs: [path.resolve(process.cwd(), 'src/assets/svg')],
-                // 指定symbolId格式
-                symbolId: 'icon-[dir]-[name]',
             }),
         ],
         // 代理配置
@@ -70,7 +62,7 @@ export default ({ mode }: { mode: string }) => {
             terserOptions: {
                 compress: {
                     keep_infinity: true,
-                    drop_console: true,
+                    drop_console: false,
                     drop_debugger: true,
                 },
             },

@@ -8,7 +8,7 @@ export class MapAnimation extends ThreeScene {
     private clock = new THREE.Clock();
     constructor(dom: HTMLElement) {
         super(dom);
-        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then();
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).catch(() => undefined);
     }
 
     public init() {
@@ -26,7 +26,7 @@ export class MapAnimation extends ThreeScene {
     public animate() {
         const delta = this.clock?.getDelta() ?? 0;
         this.arrowAni && this.arrowAni.update(delta * 1000);
-        requestAnimationFrame(this.animate.bind(this));
+        this.animateFrame = requestAnimationFrame(this.animate.bind(this));
         this.renderer.render(this.scene, this.camera);
         this.stats?.update();
     }

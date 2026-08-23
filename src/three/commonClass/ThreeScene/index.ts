@@ -38,6 +38,7 @@ export class ThreeScene {
     protected viewSize = { width: 0, height: 0 };
     // 动画帧
     protected animateFrame: number | undefined;
+    protected isDisposed = false;
 
     constructor(dom: HTMLElement, config?: IConfig) {
         this.scene = new THREE.Scene();
@@ -67,10 +68,11 @@ export class ThreeScene {
 
         this.dom = dom;
 
-        this.animate();
-
         this.camera.position.z = 5;
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    }
+    public start() {
+        if (!this.isDisposed && this.animateFrame === undefined) this.animate();
     }
     public animate() {
         this.animateFrame = requestAnimationFrame(this.animate.bind(this));
@@ -94,12 +96,18 @@ export class ThreeScene {
                 const hdr = texture.renderTarget.texture;
                 // 重置渲染器的toneMappingExposure属性
                 hdr.mapping = THREE.EquirectangularReflectionMapping;
-                this.scene.background = hdr;
-                this.scene.environment = hdr;
                 // 释放资源
                 hdrJpgLoad.dispose();
-                if (hdr) resolve(hdr);
-                reject('HDR贴图加载失败');
+                if (!hdr) {
+                    reject(new Error('HDR texture failed to load'));
+                    return;
+                }
+                if (this.isDisposed) hdr.dispose();
+                else {
+                    this.scene.background = hdr;
+                    this.scene.environment = hdr;
+                }
+                resolve(hdr);
             });
         });
     }
@@ -117,6 +125,31 @@ export class ThreeScene {
      * 销毁
      * */
     public dispose() {
+        if (this.isDisposed) return;
+        this.isDisposed = true;
+        if (this.animateFrame !== undefined) {
+            cancelAnimationFrame(this.animateFrame);
+        }
+        this.controls?.dispose();
+        const textures = new Set<THREE.Texture>();
+        [this.scene.background, this.scene.environment].forEach((texture) => {
+            if (texture instanceof THREE.Texture) textures.add(texture);
+        });
+        this.scene.traverse((object) => {
+            const mesh = object as THREE.Mesh;
+            mesh.geometry?.dispose();
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            materials.filter(Boolean).forEach((material) => {
+                Object.values(material).forEach((value) => {
+                    if (value instanceof THREE.Texture) textures.add(value);
+                });
+                material.dispose();
+            });
+        });
+        textures.forEach((texture) => texture.dispose());
+        this.stats?.dom.remove();
+        this.labelRender.domElement.remove();
+        this.renderer.domElement.remove();
         this.renderer.dispose();
         this.scene.clear();
     }
@@ -124,13 +157,13 @@ export class ThreeScene {
      * 监听窗口变化
      * */
     public onWindowResize() {
-        const { innerWidth, innerHeight } = window;
-        this.viewSize.width = innerWidth;
-        this.viewSize.height = innerHeight;
-        this.camera.aspect = innerWidth / innerHeight;
+        const { clientWidth, clientHeight } = this.dom;
+        this.viewSize.width = clientWidth;
+        this.viewSize.height = clientHeight;
+        this.camera.aspect = clientWidth / clientHeight;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(innerWidth, innerHeight);
-        this.labelRender.setSize(innerWidth, innerHeight);
+        this.renderer.setSize(clientWidth, clientHeight);
+        this.labelRender.setSize(clientWidth, clientHeight);
     }
     /**
      * 设置相机参数

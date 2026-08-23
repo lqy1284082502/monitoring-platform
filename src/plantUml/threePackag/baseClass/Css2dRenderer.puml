@@ -1,8 +1,0 @@
-@startuml
- class Css2dRenderer {
-  +main(args: String[]): void
- }
-note top of Css2dRenderer
-  Css3渲染器，用于渲染2D场景
-end note
-@enduml

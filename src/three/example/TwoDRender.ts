@@ -6,11 +6,14 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import Label from '@/three/commonClass/css2DRenderer/components/Label.tsx';
 import ReactDOM from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import React from 'react';
 
 export class TwoDRender extends ThreeScene {
     private composer: EffectComposer | null = null;
     private label: CSS2DObject | null = null;
+    private readonly handleMouseClick = this.onMouseClick.bind(this);
+    private labelRoot: Root | null = null;
     constructor(dom: HTMLElement) {
         super(dom);
     }
@@ -20,7 +23,7 @@ export class TwoDRender extends ThreeScene {
         this.camera.far = 1000;
         this.camera.position.set(0, 0, 15);
         this.initCube();
-        window.addEventListener('click', this.onMouseClick.bind(this));
+        this.dom.addEventListener('click', this.handleMouseClick);
     }
     // 添加立方体
     public initCube() {
@@ -46,11 +49,13 @@ export class TwoDRender extends ThreeScene {
     // 呼吸光
     initOutlinePass(materialObj?: THREE.Object3D<THREE.Object3DEventMap>) {
         if (!materialObj) {
+            this.composer?.dispose();
             this.composer = null;
             return;
         }
-        let renderScene = new RenderPass(this.scene, this.camera);
-        let outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), this.scene, this.camera, [materialObj]);
+        this.composer?.dispose();
+        const renderScene = new RenderPass(this.scene, this.camera);
+        const outlinePass = new OutlinePass(new THREE.Vector2(this.viewSize.width, this.viewSize.height), this.scene, this.camera, [materialObj]);
         // 将此通道结果渲染到屏幕
         outlinePass.renderToScreen = true;
         outlinePass.edgeGlow = 1; // 发光强度
@@ -67,9 +72,9 @@ export class TwoDRender extends ThreeScene {
     }
     // 射线拾取
     private rayCaster(event: MouseEvent, geometryList: THREE.Object3D<THREE.Object3DEventMap>[]) {
-        const { width, height } = this.viewSize;
-        const x = (event.clientX / width) * 2 - 1;
-        const y = -(event.clientY / height) * 2 + 1;
+        const { width, height, left, top } = this.dom.getBoundingClientRect();
+        const x = ((event.clientX - left) / width) * 2 - 1;
+        const y = -((event.clientY - top) / height) * 2 + 1;
         const ray = new THREE.Raycaster();
         ray.setFromCamera(new THREE.Vector2(x, y), this.camera);
         return ray.intersectObjects(geometryList);
@@ -91,10 +96,12 @@ export class TwoDRender extends ThreeScene {
         // 根据name从场景中移除元素
         if (this.scene.getObjectByName('label')) {
             this.scene.remove(this.scene.getObjectByName('label') as THREE.Object3D<THREE.Object3DEventMap>);
+            this.labelRoot?.unmount();
         }
         const reactElement = React.createElement(Label, { name: (<any>selectBoxObj).name });
         const htmlElement = document.createElement('div');
-        ReactDOM.createRoot(htmlElement).render(reactElement);
+        this.labelRoot = ReactDOM.createRoot(htmlElement);
+        this.labelRoot.render(reactElement);
         this.label = new CSS2DObject(htmlElement);
         this.label.name = 'label';
         this.label.position.copy((selectBoxObj as any).position);
@@ -104,5 +111,17 @@ export class TwoDRender extends ThreeScene {
     animate() {
         super.animate();
         if (this.composer) this.composer.render();
+    }
+
+    public dispose() {
+        this.dom.removeEventListener('click', this.handleMouseClick);
+        this.labelRoot?.unmount();
+        this.composer?.dispose();
+        super.dispose();
+    }
+
+    public onWindowResize() {
+        super.onWindowResize();
+        this.composer?.setSize(this.viewSize.width, this.viewSize.height);
     }
 }

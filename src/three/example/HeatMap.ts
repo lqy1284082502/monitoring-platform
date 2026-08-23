@@ -8,6 +8,7 @@ import vertexShader from '@/shaders/heatMap/vertexShader.glsl?raw';
 import fragmentShader from '@/shaders/heatMap/fragmentShader.glsl?raw';
 
 export class HeatMap extends ThreeScene {
+    private readonly abortController = new AbortController();
     constructor(dom: HTMLElement) {
         super(dom);
         this.camera.position.set(26.418983330409905, 464.0893611265324, 276.88402793055997);
@@ -18,8 +19,8 @@ export class HeatMap extends ThreeScene {
     }
 
     private initHeatMap(): Promise<{ canvas: any; option: any }> {
-        return new Promise((resolve) => {
-            fetch(publicUrl('json/traffic.json'))
+        return new Promise((resolve, reject) => {
+            fetch(publicUrl('json/traffic.json'), { signal: this.abortController.signal })
                 .then((res) => res.json())
                 .then((data: any) => {
                     const info: IHeatMap.InfoType = {
@@ -68,12 +69,14 @@ export class HeatMap extends ThreeScene {
                     };
                     const canvas = this.createHeatmap(option);
                     resolve({ option, canvas });
-                });
+                })
+                .catch(reject);
         });
     }
 
     private async createChart() {
         const { canvas: heatmapCanvas, option } = await this.initHeatMap();
+        if (this.isDisposed || !heatmapCanvas) return;
         const map = new THREE.CanvasTexture(heatmapCanvas);
         map.wrapS = THREE.RepeatWrapping;
         map.wrapT = THREE.RepeatWrapping;
@@ -100,6 +103,11 @@ export class HeatMap extends ThreeScene {
             })
             .easing(TWEEN.Easing.Quadratic.Out)
             .start();
+    }
+
+    public dispose() {
+        this.abortController.abort();
+        super.dispose();
     }
 
     private createHeatmap(option: IHeatMap.IPosition) {

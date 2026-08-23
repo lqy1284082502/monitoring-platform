@@ -5,8 +5,6 @@ import { configData } from '@/conf/configData';
 export const routeConfiguration: RouteObjectIncludesMeta[] = [
     {
         path: '/',
-        // Component: lazy(() => import('@/layout/MainLayout')),
-        // 重定向到第一个 children
         children: [
             {
                 index: true,

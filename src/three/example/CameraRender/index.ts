@@ -110,6 +110,10 @@ export class CameraRender extends ThreeScene {
         // this.renderer.antialias = true;
         const hdrLoader = new RGBELoader();
         hdrLoader.load(publicUrl('textures/gainmap/metro_noord_4k.hdr'), (texture) => {
+            if (this.isDisposed) {
+                texture.dispose();
+                return;
+            }
             const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
             this.scene.environment = pmremGenerator.fromEquirectangular(texture).texture;
             texture.dispose(); // 释放纹理内存
@@ -125,6 +129,15 @@ export class CameraRender extends ThreeScene {
         loader.setDRACOLoader(dracoLoader);
         loader.load(publicUrl('models/item/camera.glb'), (gltf) => {
             const model = gltf.scene;
+            if (this.isDisposed) {
+                model.traverse((child) => {
+                    const mesh = child as THREE.Mesh;
+                    mesh.geometry?.dispose();
+                    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                    materials.filter(Boolean).forEach((material) => material.dispose());
+                });
+                return;
+            }
             model.position.set(1, 1, 0);
             model.traverse((child) => {
                 if (child.type === 'Mesh') {

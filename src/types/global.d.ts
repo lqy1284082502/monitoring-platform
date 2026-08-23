@@ -15,6 +15,11 @@ export namespace IBaseInterface {
         name: string;
         path: string;
         className: string;
+        componentName: string;
+        thumbnail: {
+            path: string;
+            waitMs: number;
+        };
     }
     export interface IGeoJsonFeatures {
         type: string;

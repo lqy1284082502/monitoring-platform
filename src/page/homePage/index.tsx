@@ -1,59 +1,42 @@
-import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './index.less';
-import { useState } from 'react';
-import { ClassFactory } from '@/class/utilities.ts';
-
 import { configData } from '@/conf/configData';
 import { IBaseInterface } from '@/types/global';
+import { publicUrl } from '@/utils/publicUrl';
 
 function HomePage() {
     const navigate = useNavigate();
-    // 渲染40个div并且每个div都绑定一个ref
-    const divsRef = useRef<HTMLDivElement[]>([]);
-    const [divs] = useState<IBaseInterface.IConfigItem[]>(configData);
-    // 是否渲染
-    let isRender = false;
-    useEffect(() => {
-        if (isRender) return;
-        isRender = true;
 
-        if (!divsRef.current?.length) return;
-        const instances: ClassFactory[] = [];
-        divs.forEach((item) => {
-            const instance = new ClassFactory();
-            instance.init(item.className, divsRef.current[item.id]);
-            instances.push(instance);
-        });
-
-        return () => {
-            instances.forEach((item, index) => {
-                item.disposeAll();
-                if (!divsRef.current[index]) return;
-                divsRef.current[index].innerHTML = '';
-            });
-        };
-    }, []);
-    // 点击div
     function handleClick(item: IBaseInterface.IConfigItem) {
-        // 路由跳转
         navigate(item.path);
     }
+
     return (
-        <div className="container">
-            {divs.map((item) => {
-                return (
-                    <div key={item.id} className="list-item" onDoubleClick={() => handleClick(item)}>
-                        <div
-                            ref={(el) => {
-                                divsRef.current[item.id] = el as HTMLDivElement;
-                            }}
-                        />
-                        <div>{item.name}</div>
+        <main className="example-catalogue">
+            <div className="catalogue-content">
+                <header className="catalogue-header">
+                    <div>
+                        <p className="catalogue-eyebrow">THREE.JS PLAYGROUND</p>
+                        <h1>交互视觉示例</h1>
+                        <p>从场景、材质到数据可视化，选择一个示例开始浏览。</p>
                     </div>
-                );
-            })}
-        </div>
+                    <p className="catalogue-count"><strong>{String(configData.length).padStart(2, '0')}</strong> 个示例</p>
+                </header>
+                <section className="example-grid" aria-label="示例列表">
+                    {configData.map((item, index) => (
+                        <button key={item.id} className="example-card" type="button" onClick={() => handleClick(item)}>
+                            <span className="example-preview" aria-hidden="true">
+                                <img src={publicUrl(item.thumbnail.path)} alt="" loading="lazy" onError={(event) => event.currentTarget.remove()} />
+                                <span className="example-preview-fallback" />
+                            </span>
+                            <span className="example-index">{String(index + 1).padStart(2, '0')}</span>
+                            <span className="example-name">{item.name}</span>
+                            <span className="example-action" aria-hidden="true">打开</span>
+                        </button>
+                    ))}
+                </section>
+            </div>
+        </main>
     );
 }
 

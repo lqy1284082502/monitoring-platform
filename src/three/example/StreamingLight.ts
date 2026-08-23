@@ -57,7 +57,7 @@ export class StreamingLight extends ThreeScene {
         });
     }
     public animate() {
-        requestAnimationFrame(this.animate.bind(this));
+        this.animateFrame = requestAnimationFrame(this.animate.bind(this));
         this.renderer.render(this.scene, this.camera);
         this.labelRender.render(this.scene, this.camera);
         this.controls && this.controls.update();

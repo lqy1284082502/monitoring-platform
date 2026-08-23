@@ -8,7 +8,7 @@ import { publicUrl } from '@/utils/publicUrl';
 export class HDRLoad extends ThreeScene {
     constructor(dom: HTMLElement) {
         super(dom);
-        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then();
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).catch(() => undefined);
     }
     init() {
         const geometry = new THREE.TorusKnotGeometry(18, 8, 200, 40, 1, 3);
@@ -23,7 +23,7 @@ export class HDRLoad extends ThreeScene {
 
     // 重写父类的animate方法
     animate() {
-        requestAnimationFrame(this.animate.bind(this));
+        this.animateFrame = requestAnimationFrame(this.animate.bind(this));
         this.cubeList.forEach((cube) => {
             cube.rotation.x += 0.005;
             cube.rotation.y += 0.005;

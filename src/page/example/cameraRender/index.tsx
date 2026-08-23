@@ -1,17 +1,6 @@
-import { useRef } from 'react';
 import { CameraRender as CameraRenderClass } from '@/three';
-import { useMount } from 'ahooks';
+import { ThreeDemo } from '@/components/ThreeDemo';
 
-function CameraRender() {
-    const divRef = useRef<HTMLDivElement>(null);
-    const threeScene = useRef<CameraRenderClass>();
-
-    useMount(() => {
-        if (threeScene.current) return;
-        threeScene.current = new CameraRenderClass(divRef.current as HTMLDivElement);
-        threeScene.current.init();
-    });
-    return <div ref={divRef} style={{ width: '100%', height: 'calc(100vh)', position: 'relative' }} />;
-}
+function CameraRender() { return <ThreeDemo Scene={CameraRenderClass} />; }
 
 export default CameraRender;

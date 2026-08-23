@@ -16,8 +16,9 @@ export class EarthSweep extends ThreeScene {
         this.setCameraProps(cameraDefault);
         this.camera.position.set(37, 0, 60);
         this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
+            if (this.isDisposed) return;
             this.scene.background = null;
-        });
+        }).catch(() => undefined);
     }
     public init() {
         this.initEarth();

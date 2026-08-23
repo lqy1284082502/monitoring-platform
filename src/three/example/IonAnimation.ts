@@ -9,6 +9,8 @@ export class IonAnimation extends ThreeScene {
     private pointNum = 294;
     private randomPoints: THREE.BufferAttribute | THREE.InterleavedBufferAttribute | null = null;
     private counter: number = 0;
+    private intervalId: number | undefined;
+    private cubeGeometry: THREE.BoxGeometry | undefined;
     constructor(dom: HTMLElement) {
         super(dom);
         // this.loadHDRI(import.meta.env.VITE_PUBLIC_PATH + '/textures/gainmap/spruit_sunrise_4k.jpg').then();
@@ -17,7 +19,8 @@ export class IonAnimation extends ThreeScene {
         const geometry = new THREE.BufferGeometry();
         this.getRandom(geometry);
         this.randomPoints = geometry.getAttribute('position');
-        setInterval(() => {
+        this.cubeGeometry = new THREE.BoxGeometry(40, 40, 40, 6, 6, 6);
+        this.intervalId = window.setInterval(() => {
             this.counter++;
             this.combineCube(geometry);
         }, 10000);
@@ -50,13 +53,14 @@ export class IonAnimation extends ThreeScene {
         this.positions[i * 3] = newVertice.x;
         this.positions[i * 3 + 1] = newVertice.y;
         this.positions[i * 3 + 2] = newVertice.z;
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3));
+        const position = geo.getAttribute('position') as THREE.BufferAttribute;
+        position.setXYZ(i, newVertice.x, newVertice.y, newVertice.z);
+        position.needsUpdate = true;
     }
     private combineCube(geo: any) {
         const tween = geo.tweens || [];
-        const cubeGeometry = new THREE.BoxGeometry(40, 40, 40, 6, 6, 6);
         this.positions = new Float32Array(this.pointNum * 3);
-        const positionAttribute = this.counter % 2 ? cubeGeometry.getAttribute('position') : this.randomPoints;
+        const positionAttribute = this.counter % 2 ? this.cubeGeometry?.getAttribute('position') : this.randomPoints;
         for (let i = 0; i < this.pointNum; i++) {
             const newVertice = new THREE.Vector3(
                 geo.attributes.position.array[i * 3],
@@ -80,7 +84,13 @@ export class IonAnimation extends ThreeScene {
                 object.rotation.y = time * (i < 4 ? i + 1 : -(i + 1));
             }
         }
-        requestAnimationFrame(this.animate.bind(this));
+        this.animateFrame = requestAnimationFrame(this.animate.bind(this));
         this.renderer.render(this.scene, this.camera);
+    }
+
+    public dispose() {
+        if (this.intervalId !== undefined) window.clearInterval(this.intervalId);
+        this.cubeGeometry?.dispose();
+        super.dispose();
     }
 }

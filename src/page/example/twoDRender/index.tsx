@@ -1,16 +1,6 @@
-import { useEffect, useRef } from 'react';
 import { TwoDRender as TwoDRenderClass } from '@/three';
+import { ThreeDemo } from '@/components/ThreeDemo';
 
-function TwoDRender() {
-    const divRef = useRef<HTMLDivElement>(null);
-    const threeScene = useRef<TwoDRenderClass>();
-    useEffect(() => {
-        if (!threeScene.current) {
-            threeScene.current = new TwoDRenderClass(divRef.current as HTMLDivElement);
-            threeScene.current?.init();
-        }
-    });
-    return <div ref={divRef} style={{ width: '100%', height: 'calc(100vh)', position: 'relative' }} />;
-}
+function TwoDRender() { return <ThreeDemo Scene={TwoDRenderClass} />; }
 
 export default TwoDRender;

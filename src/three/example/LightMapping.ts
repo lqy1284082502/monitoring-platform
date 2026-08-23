@@ -12,8 +12,9 @@ export class LightMapping extends ThreeScene {
         this.camera.updateProjectionMatrix();
         // 设置HDR贴图
         this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
+            if (this.isDisposed) return;
             this.scene.background = new THREE.Color(0x000000);
-        });
+        }).catch(() => undefined);
     }
     // 初始化函数
     public async init() {
@@ -28,6 +29,15 @@ export class LightMapping extends ThreeScene {
         // 修改摄像机默认参数
         const loader = new THREE.ObjectLoader();
         const object = await loader.loadAsync(publicUrl('models/json/lightmap/lightmap.json'));
+        if (this.isDisposed) {
+            object.traverse((child) => {
+                const mesh = child as THREE.Mesh;
+                mesh.geometry?.dispose();
+                const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                materials.filter(Boolean).forEach((material) => material.dispose());
+            });
+            return;
+        }
         this.scene.add(object);
         this.controls!.enableZoom = false;
         this.controls!.maxPolarAngle = (0.9 * Math.PI) / 2;

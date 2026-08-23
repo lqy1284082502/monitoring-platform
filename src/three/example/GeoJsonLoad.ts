@@ -18,6 +18,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ReflectorForSSRPass } from 'three/addons/objects/ReflectorForSSRPass.js';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import type { Root } from 'react-dom/client';
 import { CityLabel } from '@/components/label';
 import * as TWEEN from '@tweenjs/tween.js';
 import type { Mesh } from 'three';
@@ -34,6 +35,7 @@ import mixVertexShader from '@/shaders/mixPass/vertexShader.glsl?raw';
 import mixFragmentShader from '@/shaders/mixPass/fragmentShader.glsl?raw';
 
 const BLOOM_SCENE = 1;
+const MAX_PIXEL_RATIO = 1.5;
 /**
  * three初始场景
  * */
@@ -48,6 +50,7 @@ export class GeoJsonLoad extends ThreeScene {
     private composer: EffectComposer | undefined;
     // 辉光后期处理
     private bloomComposer: EffectComposer | undefined;
+    private fxaaPass: ShaderPass | undefined;
     // 需要添加后期的地板
     private floor: Mesh | undefined;
     // 时间对象
@@ -58,10 +61,9 @@ export class GeoJsonLoad extends ThreeScene {
     private time = 1.0;
     // 点击border缓存对象
     private clickedBorder: LineLoop | undefined;
-    // 辉光体层级
-    private bloomLayer = new THREE.Layers();
-    // 全局材质对象
-    private materials: { [key: string]: THREE.Material | THREE.Material[] } = {};
+    private readonly handleMapClick = this.handleClick.bind(this);
+    private readonly animateLoop = this.animate.bind(this);
+    private labelRoots: Root[] = [];
     constructor(dom: HTMLElement) {
         super(dom);
         this.camera.far = 1500;
@@ -71,13 +73,12 @@ export class GeoJsonLoad extends ThreeScene {
         // 初始化加载器
         this.textureLoader = new THREE.TextureLoader().setPath(publicUrl('textures/'));
         this.fileLoader = new THREE.FileLoader().setPath(import.meta.env.BASE_URL);
-        // 设置辉光体层级为1
-        this.bloomLayer.set(BLOOM_SCENE);
     }
     /**
      * 初始化方法
      * */
     public init() {
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO));
         // 关闭控制拖拽
         this.controls.enablePan = false;
         // 设置控制器的最大最小旋转角度
@@ -90,6 +91,7 @@ export class GeoJsonLoad extends ThreeScene {
         this.controls.autoRotateSpeed = 0.2;
 
         this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
+            if (this.isDisposed) return;
             this.scene.background = null;
             // this.scene.environment = null;
             this.loadTheSkybox();
@@ -109,7 +111,7 @@ export class GeoJsonLoad extends ThreeScene {
                 vertexShader: cityVertexShader,
                 fragmentShader: cityFragmentShader,
             });
-        });
+        }).catch(() => undefined);
     }
 
     /**
@@ -125,6 +127,7 @@ export class GeoJsonLoad extends ThreeScene {
         texture.rotation = Math.PI;
 
         this.fileLoader.load('models/map/cd.json', (data) => {
+            if (this.isDisposed) return;
             if (typeof data !== 'string') return;
 
             // 数据格式化
@@ -170,7 +173,9 @@ export class GeoJsonLoad extends ThreeScene {
                         // 将 React 组件转换为 HTML 元素
                         const reactElement = React.createElement(CityLabel, { city: feature.properties.name });
                         const htmlElement = document.createElement('div');
-                        ReactDOM.createRoot(htmlElement).render(reactElement);
+                        const root = ReactDOM.createRoot(htmlElement);
+                        root.render(reactElement);
+                        this.labelRoots.push(root);
 
                         const areaLabel = new CSS2DObject(htmlElement);
                         areaLabel.position.set(boundingBoxCenter.x, boundingBoxCenter.y, 20);
@@ -186,15 +191,15 @@ export class GeoJsonLoad extends ThreeScene {
                         this.province.add(group);
                     });
                 }
-                this.map.add(this.province);
-                this.postProcessing();
             });
+            this.map.add(this.province);
+            this.postProcessing();
             const size = 0.8;
             this.map.scale.set(size, size, size);
             this.map.rotation.x = -Math.PI / 2;
             this.scene.add(this.map);
 
-            window.addEventListener('click', this.handleClick.bind(this));
+            window.addEventListener('click', this.handleMapClick);
         });
     }
 
@@ -318,27 +323,15 @@ export class GeoJsonLoad extends ThreeScene {
             }
         });
     }
-    private darkenNonBloomed(item: THREE.Object3D<THREE.Object3DEventMap>) {
-        //@ts-ignore
-        if (item.material && !this.bloomLayer.test(item.layers)) {
-            this.materials[item.uuid] = (item as Mesh).material;
-            (item as Mesh).material = new THREE.MeshBasicMaterial({ color: 'black' });
-        }
-    }
-    private restoreMaterial(item: THREE.Object3D<THREE.Object3DEventMap>) {
-        if (this.materials?.[item.uuid]) {
-            (item as Mesh).material = this.materials[item.uuid];
-            delete this.materials[item.uuid];
-        }
-    }
     /**
      * 重写动画方法
      * */
     public animate() {
         if (this.bloomComposer) {
-            this.scene.traverse(this.darkenNonBloomed.bind(this));
+            const previousCameraMask = this.camera.layers.mask;
+            this.camera.layers.set(BLOOM_SCENE);
             this.bloomComposer.render();
-            this.scene.traverse(this.restoreMaterial.bind(this));
+            this.camera.layers.mask = previousCameraMask;
         }
 
         this.composer?.render();
@@ -361,8 +354,28 @@ export class GeoJsonLoad extends ThreeScene {
             this.controls.autoRotate = true;
         }
 
-        requestAnimationFrame(this.animate.bind(this));
+        this.animateFrame = requestAnimationFrame(this.animateLoop);
     }
+
+    public dispose() {
+        window.removeEventListener('click', this.handleMapClick);
+        this.labelRoots.forEach((root) => root.unmount());
+        this.labelRoots = [];
+        this.composer?.dispose();
+        this.bloomComposer?.dispose();
+        super.dispose();
+    }
+
+    public onWindowResize() {
+        super.onWindowResize();
+        this.composer?.setSize(this.viewSize.width, this.viewSize.height);
+        this.bloomComposer?.setSize(this.viewSize.width, this.viewSize.height);
+        const pixelRatio = this.renderer.getPixelRatio();
+        if (this.fxaaPass) {
+            this.fxaaPass.material.uniforms['resolution'].value.set(1 / (this.viewSize.width * pixelRatio), 1 / (this.viewSize.height * pixelRatio));
+        }
+    }
+
     /**
      * 生成地板
      * */
@@ -371,36 +384,55 @@ export class GeoJsonLoad extends ThreeScene {
             width: 1000,
             height: 1000,
         };
+        const loadFloorTexture = (fileName: string) =>
+            this.textureLoader.load(fileName, undefined, undefined, () => {
+                console.error(`Failed to load floor texture: ${fileName}`);
+            });
 
         // 创建蜂窝地板
-        const texture = this.textureLoader.load('/floor-bg.png');
+        const texture = loadFloorTexture('floor-bg.png');
         texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
         const repeatSize1 = 50;
         texture.repeat.set(repeatSize1, repeatSize1);
 
         // 创建蜂窝边框
-        const texture1 = this.textureLoader.load('/floor-border.png');
+        const texture1 = loadFloorTexture('floor-border.png');
         texture1.wrapS = texture1.wrapT = THREE.RepeatWrapping;
         texture1.repeat.set(repeatSize1, repeatSize1);
 
         // 加载网格贴图
-        const texture2 = this.textureLoader.load('/地板线01.png');
+        const texture2 = loadFloorTexture('地板线01.png');
         texture2.wrapS = texture2.wrapT = THREE.RepeatWrapping;
         texture2.repeat.set(repeatSize1, repeatSize1);
 
         const floorGeometry = new THREE.PlaneGeometry(planeConfig.width, planeConfig.height);
-        const floorMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.26, color: '#356DE1' });
+        const floorMaterial = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 0.26,
+            color: '#356DE1',
+        });
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
         floor.position.set(0, -3, 0);
 
-        //蜂窝地板
+        // 蜂窝地板
         const floor1 = floor.clone();
-        floor1.material = new THREE.MeshBasicMaterial({ map: texture1, transparent: true, opacity: 0.56, color: '#002A48' });
+        floor1.material = new THREE.MeshBasicMaterial({
+            map: texture1,
+            transparent: true,
+            opacity: 0.56,
+            color: '#002A48',
+        });
 
         // 网格地板下
         const floor2 = floor.clone();
-        floor2.material = new THREE.MeshBasicMaterial({ map: texture2, transparent: true, opacity: 1, color: '#4F8FFF' });
+        floor2.material = new THREE.MeshBasicMaterial({
+            map: texture2,
+            transparent: true,
+            opacity: 1,
+            color: '#4F8FFF',
+        });
 
         // 网格地板上
         this.floor = floor2.clone();
@@ -450,8 +482,8 @@ export class GeoJsonLoad extends ThreeScene {
             renderer: this.renderer,
             scene: this.scene,
             camera: this.camera,
-            width: innerWidth,
-            height: innerHeight,
+            width: this.viewSize.width,
+            height: this.viewSize.height,
             groundReflector: groundReflector,
             selects: [],
         });
@@ -465,6 +497,7 @@ export class GeoJsonLoad extends ThreeScene {
 
         // fxaa后期处理
         const fxaaPass = new ShaderPass(FXAAShader);
+        this.fxaaPass = fxaaPass;
         const pixelRatio = this.renderer.getPixelRatio();
 
         fxaaPass.material.uniforms['resolution'].value.x = 1 / (this.viewSize.width * pixelRatio);
@@ -495,7 +528,9 @@ export class GeoJsonLoad extends ThreeScene {
         // 第二个后期处理
         this.bloomComposer = new EffectComposer(this.renderer);
         this.bloomComposer.renderToScreen = false;
-        this.bloomComposer.addPass(renderPass);
+        const bloomRenderPass = new RenderPass(this.scene, this.camera);
+        bloomRenderPass.clearAlpha = 0;
+        this.bloomComposer.addPass(bloomRenderPass);
         this.bloomComposer.addPass(bloomPass);
 
         // 混合后期shader处理
