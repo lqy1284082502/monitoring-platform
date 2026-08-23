@@ -6,16 +6,12 @@ import { GeoProjection } from 'd3';
 import { IBaseInterface } from '@/types/global';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { SSRPass } from 'three/addons/postprocessing/SSRPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-// 环境光遮蔽
-// import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
-import { ReflectorForSSRPass } from 'three/addons/objects/ReflectorForSSRPass.js';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import type { Root } from 'react-dom/client';
@@ -36,6 +32,8 @@ import mixFragmentShader from '@/shaders/mixPass/fragmentShader.glsl?raw';
 
 const BLOOM_SCENE = 1;
 const MAX_PIXEL_RATIO = 1.5;
+const BLOOM_RESOLUTION_SCALE = 0.5;
+const LABEL_FRAME_INTERVAL = 1000 / 30;
 /**
  * three初始场景
  * */
@@ -62,8 +60,8 @@ export class GeoJsonLoad extends ThreeScene {
     // 点击border缓存对象
     private clickedBorder: LineLoop | undefined;
     private readonly handleMapClick = this.handleClick.bind(this);
-    private readonly animateLoop = this.animate.bind(this);
     private labelRoots: Root[] = [];
+    private lastLabelRenderTime = 0;
     constructor(dom: HTMLElement) {
         super(dom);
         this.camera.far = 1500;
@@ -90,28 +88,30 @@ export class GeoJsonLoad extends ThreeScene {
         this.controls.autoRotate = true;
         this.controls.autoRotateSpeed = 0.2;
 
-        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
-            if (this.isDisposed) return;
-            this.scene.background = null;
-            // this.scene.environment = null;
-            this.loadTheSkybox();
-            this.addLight();
-            this.createFloor();
-            this.LoadingGeoJson();
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg'))
+            .then(() => {
+                if (this.isDisposed) return;
+                this.scene.background = null;
+                // this.scene.environment = null;
+                this.loadTheSkybox();
+                this.addLight();
+                this.createFloor();
+                this.LoadingGeoJson();
 
-            // shader着色器
-            this.cityMaterial = new THREE.ShaderMaterial({
-                uniforms: {
-                    time: { value: 0.0 },
-                    len: { value: 0.05 },
-                    size: { value: 0.5 },
-                    color1: { value: new THREE.Color('#FFFFFF') },
-                    color2: { value: new THREE.Color('#FFFF00') },
-                },
-                vertexShader: cityVertexShader,
-                fragmentShader: cityFragmentShader,
-            });
-        }).catch(() => undefined);
+                // shader着色器
+                this.cityMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        time: { value: 0.0 },
+                        len: { value: 0.05 },
+                        size: { value: 0.5 },
+                        color1: { value: new THREE.Color('#FFFFFF') },
+                        color2: { value: new THREE.Color('#FFFF00') },
+                    },
+                    vertexShader: cityVertexShader,
+                    fragmentShader: cityFragmentShader,
+                });
+            })
+            .catch(() => undefined);
     }
 
     /**
@@ -326,17 +326,30 @@ export class GeoJsonLoad extends ThreeScene {
     /**
      * 重写动画方法
      * */
-    public animate() {
+    public animate(timestamp = performance.now()) {
+        if (this.isDisposed || this.isPaused) {
+            this.animateFrame = undefined;
+            return;
+        }
         if (this.bloomComposer) {
             const previousCameraMask = this.camera.layers.mask;
-            this.camera.layers.set(BLOOM_SCENE);
-            this.bloomComposer.render();
-            this.camera.layers.mask = previousCameraMask;
+            const previousBackground = this.scene.background;
+            try {
+                this.scene.background = null;
+                this.camera.layers.set(BLOOM_SCENE);
+                this.bloomComposer.render();
+            } finally {
+                this.camera.layers.mask = previousCameraMask;
+                this.scene.background = previousBackground;
+            }
         }
 
         this.composer?.render();
 
-        this.labelRender.render(this.scene, this.camera);
+        if (timestamp - this.lastLabelRenderTime >= LABEL_FRAME_INTERVAL) {
+            this.labelRender.render(this.scene, this.camera);
+            this.lastLabelRenderTime = timestamp;
+        }
         this.controls?.update();
         this.stats?.update();
 
@@ -354,7 +367,7 @@ export class GeoJsonLoad extends ThreeScene {
             this.controls.autoRotate = true;
         }
 
-        this.animateFrame = requestAnimationFrame(this.animateLoop);
+        this.animateFrame = requestAnimationFrame(this.animationLoop);
     }
 
     public dispose() {
@@ -463,37 +476,8 @@ export class GeoJsonLoad extends ThreeScene {
         // 第一个后期处理
         const renderPass = new RenderPass(this.scene, this.camera);
         renderPass.clearAlpha = 0;
-        //  创建反射器
-        const groundReflector = new ReflectorForSSRPass(this.floor.geometry, {
-            clipBias: 0.0003,
-            textureWidth: this.viewSize.width,
-            textureHeight: this.viewSize.height,
-        });
-        groundReflector.material.depthWrite = false;
-        groundReflector.rotation.x = -Math.PI / 2;
-        groundReflector.visible = false;
-
-        this.scene.add(groundReflector);
 
         this.composer = new EffectComposer(this.renderer);
-
-        // ssr后期处理
-        const ssrPass = new SSRPass({
-            renderer: this.renderer,
-            scene: this.scene,
-            camera: this.camera,
-            width: this.viewSize.width,
-            height: this.viewSize.height,
-            groundReflector: groundReflector,
-            selects: [],
-        });
-        ssrPass.thickness = 0.018;
-        ssrPass.infiniteThick = false;
-        ssrPass.fresnel = true;
-        ssrPass.distanceAttenuation = true;
-        ssrPass.maxDistance = 1;
-        ssrPass.opacity = 1;
-        ssrPass.output = SSRPass.OUTPUT.Beauty;
 
         // fxaa后期处理
         const fxaaPass = new ShaderPass(FXAAShader);
@@ -528,6 +512,7 @@ export class GeoJsonLoad extends ThreeScene {
         // 第二个后期处理
         this.bloomComposer = new EffectComposer(this.renderer);
         this.bloomComposer.renderToScreen = false;
+        this.bloomComposer.setPixelRatio(this.renderer.getPixelRatio() * BLOOM_RESOLUTION_SCALE);
         const bloomRenderPass = new RenderPass(this.scene, this.camera);
         bloomRenderPass.clearAlpha = 0;
         this.bloomComposer.addPass(bloomRenderPass);
@@ -549,7 +534,6 @@ export class GeoJsonLoad extends ThreeScene {
         mixPass.needsSwap = true;
 
         this.composer.addPass(renderPass);
-        this.composer.addPass(ssrPass);
         this.composer.addPass(fxaaPass);
         this.composer.addPass(colorCorrectionPass);
         this.composer.addPass(vignettePass);

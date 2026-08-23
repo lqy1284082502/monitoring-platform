@@ -20,7 +20,9 @@ function HomePage() {
                         <h1>交互视觉示例</h1>
                         <p>从场景、材质到数据可视化，选择一个示例开始浏览。</p>
                     </div>
-                    <p className="catalogue-count"><strong>{String(configData.length).padStart(2, '0')}</strong> 个示例</p>
+                    <p className="catalogue-count">
+                        <strong>{String(configData.length).padStart(2, '0')}</strong> 个示例
+                    </p>
                 </header>
                 <section className="example-grid" aria-label="示例列表">
                     {configData.map((item, index) => (
@@ -31,7 +33,9 @@ function HomePage() {
                             </span>
                             <span className="example-index">{String(index + 1).padStart(2, '0')}</span>
                             <span className="example-name">{item.name}</span>
-                            <span className="example-action" aria-hidden="true">打开</span>
+                            <span className="example-action" aria-hidden="true">
+                                打开
+                            </span>
                         </button>
                     ))}
                 </section>

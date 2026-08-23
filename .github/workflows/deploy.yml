@@ -32,6 +32,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm install --legacy-peer-deps --no-audit --no-fund
+      - run: npm run lint:prettier:check
+      - run: npm run lint
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:

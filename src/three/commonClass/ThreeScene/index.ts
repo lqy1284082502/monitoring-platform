@@ -39,6 +39,8 @@ export class ThreeScene {
     // 动画帧
     protected animateFrame: number | undefined;
     protected isDisposed = false;
+    protected isPaused = false;
+    protected readonly animationLoop = this.animate.bind(this);
 
     constructor(dom: HTMLElement, config?: IConfig) {
         this.scene = new THREE.Scene();
@@ -49,7 +51,10 @@ export class ThreeScene {
 
         this.camera = new THREE.PerspectiveCamera(40, clientWidth / clientHeight, 1, 1000);
         this.camera.position.set(-150, 0, 0);
-        this.renderer = new THREE.WebGLRenderer(config?.rendererConfig);
+        this.renderer = new THREE.WebGLRenderer({
+            powerPreference: 'high-performance',
+            ...config?.rendererConfig,
+        });
         this.renderer.setPixelRatio(devicePixelRatio);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.setSize(clientWidth, clientHeight);
@@ -72,10 +77,23 @@ export class ThreeScene {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     }
     public start() {
-        if (!this.isDisposed && this.animateFrame === undefined) this.animate();
+        if (!this.isDisposed && !this.isPaused && this.animateFrame === undefined) this.animate();
+    }
+    public setPaused(paused: boolean) {
+        if (this.isDisposed || this.isPaused === paused) return;
+        this.isPaused = paused;
+        if (paused) {
+            if (this.animateFrame !== undefined) cancelAnimationFrame(this.animateFrame);
+            this.animateFrame = undefined;
+            return;
+        }
+        this.start();
     }
     public animate() {
-        this.animateFrame = requestAnimationFrame(this.animate.bind(this));
+        if (this.isDisposed || this.isPaused) {
+            this.animateFrame = undefined;
+            return;
+        }
         this.cubeList.forEach((cube) => {
             cube.rotation.x += 0.01;
             cube.rotation.y += 0.01;
@@ -84,6 +102,7 @@ export class ThreeScene {
         this.labelRender.render(this.scene, this.camera);
         this.controls && this.controls.update();
         this.stats && this.stats.update();
+        this.animateFrame = requestAnimationFrame(this.animationLoop);
     }
     /**
      * 加载HDR贴图
@@ -129,6 +148,7 @@ export class ThreeScene {
         this.isDisposed = true;
         if (this.animateFrame !== undefined) {
             cancelAnimationFrame(this.animateFrame);
+            this.animateFrame = undefined;
         }
         this.controls?.dispose();
         const textures = new Set<THREE.Texture>();

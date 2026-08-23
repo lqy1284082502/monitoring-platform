@@ -6,6 +6,7 @@ interface ThreeSceneInstance {
     onWindowResize?: () => void;
     useStats?: () => void;
     start?: () => void;
+    setPaused?: (paused: boolean) => void;
 }
 
 type SceneConstructor<T extends ThreeSceneInstance> = new (container: HTMLDivElement) => T;
@@ -21,17 +22,29 @@ export function useThreeScene<T extends ThreeSceneInstance>(Scene: SceneConstruc
         void Promise.resolve(scene.init()).catch((error) => {
             if (import.meta.env.DEV) console.error('Three scene initialization failed', error);
         });
+        scene.setPaused?.(document.hidden);
         scene.start?.();
 
-        if (options?.stats && scene.useStats) {
+        if (import.meta.env.DEV && options?.stats && scene.useStats) {
             scene.useStats();
         }
 
-        const handleResize = () => scene.onWindowResize?.();
+        let resizeFrame: number | undefined;
+        const handleResize = () => {
+            if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
+            resizeFrame = requestAnimationFrame(() => {
+                resizeFrame = undefined;
+                scene.onWindowResize?.();
+            });
+        };
+        const handleVisibilityChange = () => scene.setPaused?.(document.hidden);
         window.addEventListener('resize', handleResize);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
             scene.dispose?.();
             container.replaceChildren();
         };

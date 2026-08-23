@@ -11,10 +11,12 @@ export class LightMapping extends ThreeScene {
         this.camera.position.set(700, 200, -500);
         this.camera.updateProjectionMatrix();
         // 设置HDR贴图
-        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).then(() => {
-            if (this.isDisposed) return;
-            this.scene.background = new THREE.Color(0x000000);
-        }).catch(() => undefined);
+        this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg'))
+            .then(() => {
+                if (this.isDisposed) return;
+                this.scene.background = new THREE.Color(0x000000);
+            })
+            .catch(() => undefined);
     }
     // 初始化函数
     public async init() {
