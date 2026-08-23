@@ -18,14 +18,14 @@ async function generatePreviews() {
     const baseUrl = server.resolvedUrls?.local[0]?.replace(/\/$/, '');
     if (!baseUrl) throw new Error('Unable to determine the Vite preview URL.');
 
-    const { configData } = await server.ssrLoadModule('/src/conf/configData.ts');
+    const { demoRegistry } = await server.ssrLoadModule('/src/conf/demoRegistry.tsx');
     const browser = await chromium.launch();
 
     try {
         await mkdir(outputDirectory, { recursive: true });
         const page = await browser.newPage({ viewport: { width: 1000, height: 720 }, deviceScaleFactor: 1 });
 
-        for (const item of configData) {
+        for (const item of demoRegistry) {
             const url = `${baseUrl}${item.path}`;
             const outputPath = path.join(root, 'public', item.thumbnail.path);
 

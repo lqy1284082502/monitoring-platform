@@ -3,8 +3,7 @@ import * as THREE from 'three';
 import { Group, LineLoop, MeshBasicMaterial, MeshStandardMaterial, ShaderMaterial, Vector2, Vector3 } from 'three';
 import * as d3 from 'd3';
 import { GeoProjection } from 'd3';
-import { IBaseInterface } from '@/types/global';
-import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import type { GeoJsonCollection } from '@/types/geoJson';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
@@ -12,12 +11,9 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import type { Root } from 'react-dom/client';
-import { CityLabel } from '@/components/label';
 import * as TWEEN from '@tweenjs/tween.js';
 import type { Mesh } from 'three';
+import { Text } from 'troika-three-text';
 import vertexShader from '@/shaders/mapFilters/vertexShader.glsl?raw';
 import fragmentShader from '@/shaders/mapFilters/fragmentShader.glsl?raw';
 import { publicUrl } from '@/utils/publicUrl';
@@ -33,7 +29,18 @@ import mixFragmentShader from '@/shaders/mixPass/fragmentShader.glsl?raw';
 const BLOOM_SCENE = 1;
 const MAX_PIXEL_RATIO = 1.5;
 const BLOOM_RESOLUTION_SCALE = 0.5;
-const LABEL_FRAME_INTERVAL = 1000 / 30;
+// Troika parses TTF, OTF, and WOFF files directly; WOFF2 is not supported.
+const FLOATING_LABEL_FONT = publicUrl('fonts/geo-city-labels.woff');
+const FLOATING_LABEL_HEIGHT = 18;
+const FLOATING_LABEL_FLOAT_AMPLITUDE = 1.5;
+
+interface FloatingCityLabel {
+    anchor: THREE.Object3D;
+    guide: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+    opacity: number;
+    text: Text;
+    visible: boolean;
+}
 /**
  * three初始场景
  * */
@@ -60,8 +67,8 @@ export class GeoJsonLoad extends ThreeScene {
     // 点击border缓存对象
     private clickedBorder: LineLoop | undefined;
     private readonly handleMapClick = this.handleClick.bind(this);
-    private labelRoots: Root[] = [];
-    private lastLabelRenderTime = 0;
+    private activeFloatingLabel: FloatingCityLabel | undefined;
+    private fadingFloatingLabels: FloatingCityLabel[] = [];
     constructor(dom: HTMLElement) {
         super(dom);
         this.camera.far = 1500;
@@ -131,7 +138,7 @@ export class GeoJsonLoad extends ThreeScene {
             if (typeof data !== 'string') return;
 
             // 数据格式化
-            const json: IBaseInterface.IGeoJson = JSON.parse(data);
+            const json: GeoJsonCollection = JSON.parse(data);
             // 创建坐标系获取数据对象
             const projection = d3.geoMercator().center([104.06, 30.67]).scale(10000).translate([0, 0]);
             const features = json.features;
@@ -170,18 +177,7 @@ export class GeoJsonLoad extends ThreeScene {
                         const boundingBoxCenter = new THREE.Vector3();
                         boundingBox.getCenter(boundingBoxCenter);
 
-                        // 将 React 组件转换为 HTML 元素
-                        const reactElement = React.createElement(CityLabel, { city: feature.properties.name });
-                        const htmlElement = document.createElement('div');
-                        const root = ReactDOM.createRoot(htmlElement);
-                        root.render(reactElement);
-                        this.labelRoots.push(root);
-
-                        const areaLabel = new CSS2DObject(htmlElement);
-                        areaLabel.position.set(boundingBoxCenter.x, boundingBoxCenter.y, 20);
-                        areaLabel.center.set(0, 0);
-                        // 城市名称
-                        group.add(areaLabel);
+                        group.userData.labelAnchor = boundingBoxCenter;
                         // 城市模型
                         group.add(mesh);
                         // 城市边框
@@ -199,7 +195,7 @@ export class GeoJsonLoad extends ThreeScene {
             this.map.rotation.x = -Math.PI / 2;
             this.scene.add(this.map);
 
-            window.addEventListener('click', this.handleMapClick);
+            this.listen(window, 'click', this.handleMapClick as EventListener);
         });
     }
 
@@ -272,7 +268,7 @@ export class GeoJsonLoad extends ThreeScene {
                 selectedObject.userData.clieked = true;
                 new TWEEN.Tween(selectedObject.position).to({ x: 0, y: 0, z: 15 }, 500).easing(TWEEN.Easing.Quadratic.InOut).start();
                 // 获取LineLoop对象
-                this.clickedBorder = selectedObject.children[2] as LineLoop;
+                this.clickedBorder = selectedObject.children.find((child) => child instanceof LineLoop) as LineLoop | undefined;
                 if (this.clickedBorder) {
                     // 获取 LineLoop 的点
                     const vertices = this.clickedBorder.geometry.attributes.position.array;
@@ -297,40 +293,135 @@ export class GeoJsonLoad extends ThreeScene {
 
                     // 将新的 Mesh 添加到父对象中
                     selectedObject.add(tubeMesh);
+                    tubeMesh.layers.enable(BLOOM_SCENE);
                 }
-                selectedObject.children[2].layers.toggle(BLOOM_SCENE);
+                this.showFloatingLabel(selectedObject, selectedObject.name);
             }
+        } else {
+            this.resetAllProvince();
         }
     }
     /**
      * 重置所有省份状态
      * */
     private resetAllProvince() {
+        this.hideActiveFloatingLabel();
         this.province.children.forEach((item) => {
             if (item.userData.clieked) {
                 item.userData.clieked = false;
-                item.layers.disable(BLOOM_SCENE);
                 new TWEEN.Tween(item.position).to({ x: 0, y: 0, z: 0 }, 500).easing(TWEEN.Easing.Quadratic.InOut).start();
                 // 获取TubeGeometry对象
-                const tubeMesh = item.children[2] as Mesh;
+                const tubeMesh = item.children.find((child) => child.userData.type === 'tubeMesh') as Mesh | undefined;
                 if (tubeMesh && this.clickedBorder) {
                     // 从父对象中移除 TubeGeometry
                     item.remove(tubeMesh);
                     // 将 LineLoop 添加到父对象中
                     item.add(this.clickedBorder);
+                    tubeMesh.geometry.dispose();
                 }
-                item.children[2].layers.disable(BLOOM_SCENE);
             }
         });
     }
-    /**
-     * 重写动画方法
-     * */
-    public animate(timestamp = performance.now()) {
-        if (this.isDisposed || this.isPaused) {
-            this.animateFrame = undefined;
-            return;
+    private showFloatingLabel(selectedObject: THREE.Object3D, cityName: string) {
+        this.hideActiveFloatingLabel();
+
+        const anchor = new THREE.Object3D();
+        anchor.position.copy(selectedObject.userData.labelAnchor as THREE.Vector3);
+        selectedObject.add(anchor);
+
+        const text = new Text();
+        text.text = cityName;
+        text.font = FLOATING_LABEL_FONT;
+        text.fontSize = 7;
+        text.anchorX = 'center';
+        text.anchorY = 'middle';
+        text.color = '#e9fbff';
+        text.outlineColor = '#126cff';
+        text.outlineWidth = 0.08;
+        text.fillOpacity = 0;
+        text.outlineOpacity = 0;
+        text.renderOrder = 4;
+        text.visible = false;
+        text.layers.enable(BLOOM_SCENE);
+        text.sync(() => {
+            if (!this.isDisposed) text.visible = true;
+        });
+
+        const guideGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+        const guideMaterial = new THREE.LineBasicMaterial({
+            color: '#28ddff',
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+        });
+        const guide = new THREE.Line(guideGeometry, guideMaterial);
+        guide.renderOrder = 3;
+        guide.layers.enable(BLOOM_SCENE);
+        this.scene.add(text, guide);
+
+        this.activeFloatingLabel = { anchor, guide, opacity: 0, text, visible: true };
+    }
+
+    private hideActiveFloatingLabel() {
+        if (!this.activeFloatingLabel) return;
+        this.activeFloatingLabel.visible = false;
+        this.fadingFloatingLabels.push(this.activeFloatingLabel);
+        this.activeFloatingLabel = undefined;
+    }
+
+    private updateFloatingLabel(label: FloatingCityLabel, delta: number, elapsed: number) {
+        const targetOpacity = label.visible ? 1 : 0;
+        const transition = 1 - Math.exp(-10 * delta);
+        label.opacity = THREE.MathUtils.lerp(label.opacity, targetOpacity, transition);
+
+        label.anchor.updateWorldMatrix(true, false);
+        const anchorPosition = label.anchor.getWorldPosition(new THREE.Vector3());
+        const hoverOffset = FLOATING_LABEL_HEIGHT + Math.sin(elapsed * 2.4) * FLOATING_LABEL_FLOAT_AMPLITUDE;
+        label.text.position.set(anchorPosition.x, anchorPosition.y + hoverOffset, anchorPosition.z);
+        label.text.quaternion.copy(this.camera.quaternion);
+        label.text.fillOpacity = label.opacity;
+        label.text.outlineOpacity = label.opacity;
+        label.guide.material.opacity = label.opacity * 0.85;
+
+        const positions = label.guide.geometry.attributes.position;
+        positions.setXYZ(0, anchorPosition.x, anchorPosition.y, anchorPosition.z);
+        positions.setXYZ(1, anchorPosition.x, anchorPosition.y + hoverOffset - 2.5, anchorPosition.z);
+        positions.needsUpdate = true;
+    }
+
+    private disposeFloatingLabel(label: FloatingCityLabel) {
+        label.anchor.removeFromParent();
+        label.text.removeFromParent();
+        label.guide.removeFromParent();
+        label.text.dispose();
+        label.guide.geometry.dispose();
+        label.guide.material.dispose();
+    }
+
+    protected update(delta: number, elapsed: number) {
+        if (this.cityMaterial) {
+            this.time = this.time >= 1 ? 0 : this.time + 0.01;
+            this.cityMaterial.uniforms.time.value = this.time;
         }
+
+        TWEEN.update();
+
+        if (this.clock.getElapsedTime() > 30) {
+            this.controls.autoRotate = true;
+        }
+
+        if (this.activeFloatingLabel) {
+            this.updateFloatingLabel(this.activeFloatingLabel, delta, elapsed);
+        }
+        this.fadingFloatingLabels = this.fadingFloatingLabels.filter((label) => {
+            this.updateFloatingLabel(label, delta, elapsed);
+            if (label.opacity > 0.01) return true;
+            this.disposeFloatingLabel(label);
+            return false;
+        });
+    }
+
+    protected render() {
         if (this.bloomComposer) {
             const previousCameraMask = this.camera.layers.mask;
             const previousBackground = this.scene.background;
@@ -344,43 +435,19 @@ export class GeoJsonLoad extends ThreeScene {
             }
         }
 
-        this.composer?.render();
-
-        if (timestamp - this.lastLabelRenderTime >= LABEL_FRAME_INTERVAL) {
-            this.labelRender.render(this.scene, this.camera);
-            this.lastLabelRenderTime = timestamp;
-        }
-        this.controls?.update();
-        this.stats?.update();
-
-        if (this.cityMaterial) {
-            if (this.time >= 1.0) {
-                this.time = 0.0;
-            }
-            this.time = this.time + 0.01;
-            this.cityMaterial.uniforms.time.value = this.time;
-        }
-
-        TWEEN.update();
-
-        if (this.clock?.getElapsedTime() > 30) {
-            this.controls.autoRotate = true;
-        }
-
-        this.animateFrame = requestAnimationFrame(this.animationLoop);
+        if (this.composer) this.composer.render();
+        else super.render();
     }
 
     public dispose() {
-        window.removeEventListener('click', this.handleMapClick);
-        this.labelRoots.forEach((root) => root.unmount());
-        this.labelRoots = [];
-        this.composer?.dispose();
-        this.bloomComposer?.dispose();
+        if (this.activeFloatingLabel) this.disposeFloatingLabel(this.activeFloatingLabel);
+        this.fadingFloatingLabels.forEach((label) => this.disposeFloatingLabel(label));
+        this.activeFloatingLabel = undefined;
+        this.fadingFloatingLabels = [];
         super.dispose();
     }
 
-    public onWindowResize() {
-        super.onWindowResize();
+    protected onResize() {
         this.composer?.setSize(this.viewSize.width, this.viewSize.height);
         this.bloomComposer?.setSize(this.viewSize.width, this.viewSize.height);
         const pixelRatio = this.renderer.getPixelRatio();
@@ -477,7 +544,7 @@ export class GeoJsonLoad extends ThreeScene {
         const renderPass = new RenderPass(this.scene, this.camera);
         renderPass.clearAlpha = 0;
 
-        this.composer = new EffectComposer(this.renderer);
+        this.composer = this.registerDisposable(new EffectComposer(this.renderer));
 
         // fxaa后期处理
         const fxaaPass = new ShaderPass(FXAAShader);
@@ -510,7 +577,7 @@ export class GeoJsonLoad extends ThreeScene {
         bloomPass.radius = 0.5;
 
         // 第二个后期处理
-        this.bloomComposer = new EffectComposer(this.renderer);
+        this.bloomComposer = this.registerDisposable(new EffectComposer(this.renderer));
         this.bloomComposer.renderToScreen = false;
         this.bloomComposer.setPixelRatio(this.renderer.getPixelRatio() * BLOOM_RESOLUTION_SCALE);
         const bloomRenderPass = new RenderPass(this.scene, this.camera);

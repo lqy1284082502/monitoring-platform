@@ -19,11 +19,16 @@ export function useThreeScene<T extends ThreeSceneInstance>(Scene: SceneConstruc
         if (!container) return;
 
         const scene = new Scene(container);
-        void Promise.resolve(scene.init()).catch((error) => {
-            if (import.meta.env.DEV) console.error('Three scene initialization failed', error);
-        });
         scene.setPaused?.(document.hidden);
-        scene.start?.();
+        let active = true;
+
+        void Promise.resolve(scene.init())
+            .then(() => {
+                if (active) scene.start?.();
+            })
+            .catch((error) => {
+                if (import.meta.env.DEV) console.error('Three scene initialization failed', error);
+            });
 
         if (import.meta.env.DEV && options?.stats && scene.useStats) {
             scene.useStats();
@@ -42,6 +47,7 @@ export function useThreeScene<T extends ThreeSceneInstance>(Scene: SceneConstruc
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
+            active = false;
             window.removeEventListener('resize', handleResize);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);

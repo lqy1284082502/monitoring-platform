@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { publicUrl } from '@/utils/publicUrl';
 import * as TWEEN from '@tweenjs/tween.js';
 import type * as IHeatMap from '../interface/IHeatMap';
+import { createMercatorProjection } from '@/three/commonClass/utils/geoProjection';
 
 import vertexShader from '@/shaders/heatMap/vertexShader.glsl?raw';
 import fragmentShader from '@/shaders/heatMap/fragmentShader.glsl?raw';
@@ -32,7 +33,7 @@ export class HeatMap extends ThreeScene {
                         minlat: Number.MAX_SAFE_INTEGER,
                         data: [],
                     };
-                    const projection = this.getProjection({ scale: 1000 });
+                    const projection = createMercatorProjection({ scale: 1000 });
                     data.features.forEach((item: any) => {
                         const pos = projection(item.geometry.coordinates);
                         if (!pos) return;

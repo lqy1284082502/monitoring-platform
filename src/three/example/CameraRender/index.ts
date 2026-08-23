@@ -186,7 +186,4 @@ export class CameraRender extends ThreeScene {
         this.scene.add(d2);
         this.scene.add(d3);
     }
-    animate() {
-        super.animate();
-    }
 }

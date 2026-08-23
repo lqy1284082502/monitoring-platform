@@ -23,7 +23,7 @@ export class TwoDRender extends ThreeScene {
         this.camera.far = 1000;
         this.camera.position.set(0, 0, 15);
         this.initCube();
-        this.dom.addEventListener('click', this.handleMouseClick);
+        this.listen(this.dom, 'click', this.handleMouseClick as EventListener);
     }
     // 添加立方体
     public initCube() {
@@ -108,20 +108,22 @@ export class TwoDRender extends ThreeScene {
         this.label.position.y = 2;
         this.scene.add(this.label);
     }
-    animate() {
-        super.animate();
-        if (this.composer) this.composer.render();
+    protected render() {
+        if (this.composer) {
+            this.composer.render();
+            this.renderLabels();
+            return;
+        }
+        super.render();
     }
 
     public dispose() {
-        this.dom.removeEventListener('click', this.handleMouseClick);
         this.labelRoot?.unmount();
         this.composer?.dispose();
         super.dispose();
     }
 
-    public onWindowResize() {
-        super.onWindowResize();
+    protected onResize() {
         this.composer?.setSize(this.viewSize.width, this.viewSize.height);
     }
 }

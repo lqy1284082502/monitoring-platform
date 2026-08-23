@@ -1,10 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { HDRJPGLoader } from '@monogrid/gainmap-js';
-// import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import Stats from 'three/addons/libs/stats.module.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import * as d3 from 'd3';
 import type { WebGLRendererParameters } from 'three';
 import { publicUrl } from '@/utils/publicUrl';
 
@@ -28,19 +26,18 @@ export class ThreeScene {
     protected labelRender: CSS2DRenderer;
     // 控制器
     protected controls: OrbitControls;
-    // 立方体列表
-    protected cubeList: THREE.Mesh[] = [];
     // HDR加载器
     protected hdrLoader: HDRJPGLoader | undefined;
     // Stats
     protected stats: Stats | undefined;
     // 视窗大小
     protected viewSize = { width: 0, height: 0 };
-    // 动画帧
-    protected animateFrame: number | undefined;
+    private animateFrame: number | undefined;
     protected isDisposed = false;
     protected isPaused = false;
-    protected readonly animationLoop = this.animate.bind(this);
+    private readonly lifecycleClock = new THREE.Clock();
+    private readonly cleanupTasks: Array<() => void> = [];
+    private readonly animationLoop = this.tick.bind(this);
 
     constructor(dom: HTMLElement, config?: IConfig) {
         this.scene = new THREE.Scene();
@@ -76,33 +73,67 @@ export class ThreeScene {
         this.camera.position.z = 5;
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     }
+
+    public init(): void | Promise<void> {}
+
     public start() {
-        if (!this.isDisposed && !this.isPaused && this.animateFrame === undefined) this.animate();
+        if (this.isDisposed || this.isPaused || this.animateFrame !== undefined) return;
+        this.lifecycleClock.start();
+        this.tick();
     }
+
     public setPaused(paused: boolean) {
         if (this.isDisposed || this.isPaused === paused) return;
         this.isPaused = paused;
         if (paused) {
             if (this.animateFrame !== undefined) cancelAnimationFrame(this.animateFrame);
             this.animateFrame = undefined;
+            this.lifecycleClock.stop();
             return;
         }
         this.start();
     }
-    public animate() {
+
+    private tick() {
         if (this.isDisposed || this.isPaused) {
             this.animateFrame = undefined;
             return;
         }
-        this.cubeList.forEach((cube) => {
-            cube.rotation.x += 0.01;
-            cube.rotation.y += 0.01;
-        });
-        this.renderer.render(this.scene, this.camera);
-        this.labelRender.render(this.scene, this.camera);
-        this.controls && this.controls.update();
-        this.stats && this.stats.update();
+        const delta = this.lifecycleClock.getDelta();
+        this.update(delta, this.lifecycleClock.elapsedTime);
+        this.controls.update();
+        this.render();
+        this.stats?.update();
         this.animateFrame = requestAnimationFrame(this.animationLoop);
+    }
+
+    protected update(delta: number, elapsed: number) {
+        void delta;
+        void elapsed;
+    }
+
+    protected render() {
+        this.renderer.render(this.scene, this.camera);
+        this.renderLabels();
+    }
+
+    protected renderLabels() {
+        this.labelRender.render(this.scene, this.camera);
+    }
+
+    protected registerCleanup(cleanup: () => void) {
+        if (this.isDisposed) cleanup();
+        else this.cleanupTasks.push(cleanup);
+    }
+
+    protected registerDisposable<T extends { dispose: () => void }>(resource: T): T {
+        this.registerCleanup(() => resource.dispose());
+        return resource;
+    }
+
+    protected listen(target: EventTarget, type: string, listener: EventListenerOrEventListenerObject, options?: AddEventListenerOptions | boolean) {
+        target.addEventListener(type, listener, options);
+        this.registerCleanup(() => target.removeEventListener(type, listener, options));
     }
     /**
      * 加载HDR贴图
@@ -135,6 +166,7 @@ export class ThreeScene {
      * 使用stats
      * */
     public useStats() {
+        if (this.stats) return;
         this.stats = new Stats();
         this.stats.dom.style.position = 'absolute';
         this.stats.dom.style.top = '0px';
@@ -149,6 +181,10 @@ export class ThreeScene {
         if (this.animateFrame !== undefined) {
             cancelAnimationFrame(this.animateFrame);
             this.animateFrame = undefined;
+        }
+        this.lifecycleClock.stop();
+        for (const cleanup of this.cleanupTasks.splice(0).reverse()) {
+            cleanup();
         }
         this.controls?.dispose();
         const textures = new Set<THREE.Texture>();
@@ -184,27 +220,15 @@ export class ThreeScene {
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(clientWidth, clientHeight);
         this.labelRender.setSize(clientWidth, clientHeight);
+        this.onResize();
     }
+
+    protected onResize() {}
     /**
      * 设置相机参数
      * */
-    public setCameraProps(props: Partial<Common.CameraProps>) {
-        Object.entries(props).forEach(([key, value]) => {
-            (this.camera as any)[key] = value;
-        });
+    public setCameraProps(props: Partial<Pick<THREE.PerspectiveCamera, 'fov' | 'aspect' | 'near' | 'far'>>) {
+        Object.assign(this.camera, props);
+        this.camera.updateProjectionMatrix();
     }
-
-    /**
-     * 墨卡托坐标转换为屏幕坐标
-     * */
-    public getProjection(config?: Partial<IGetProjection>) {
-        const { center = [103.846, 35.832], scale = 1000, translate = [0, 0] } = config || {};
-        return d3.geoMercator().center(center).scale(scale).translate(translate);
-    }
-}
-
-interface IGetProjection {
-    center: Common.LatLng;
-    scale: number;
-    translate: Common.LatLng;
 }

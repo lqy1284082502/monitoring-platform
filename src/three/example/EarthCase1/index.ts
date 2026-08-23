@@ -1,4 +1,4 @@
-import EarthUtilsCaseOne from '@/three/commonClass/utils/EarthUtilsCaseOne.ts';
+import { ThreeScene } from '@/three/commonClass/ThreeScene';
 import {
     BufferAttribute,
     BufferGeometry,
@@ -33,7 +33,7 @@ type uniforms = {
     isHover: { value: boolean };
     map: { value: Texture | null };
 };
-export class EarthCase1 extends EarthUtilsCaseOne {
+export class EarthCase1 extends ThreeScene {
     //地球半径
     private readonly R = 30;
     // 地球光环半径
@@ -77,6 +77,7 @@ export class EarthCase1 extends EarthUtilsCaseOne {
             this.createEarthAperture();
             this.show();
         });
+        this.registerCleanup(() => this.resources?.dispose());
     }
     //创建地球
     private createEarth() {
@@ -190,9 +191,7 @@ export class EarthCase1 extends EarthUtilsCaseOne {
             ease: 'Quadratic',
         });
     }
-    // 重写父类动画
-    public animate() {
-        super.animate();
+    protected update() {
         if (this.earthGroup) {
             this.earthGroup.rotation.y += 0.002;
         }
@@ -202,7 +201,6 @@ export class EarthCase1 extends EarthUtilsCaseOne {
     }
 
     public dispose() {
-        this.resources?.dispose();
         gsap.killTweensOf(this.group.scale);
         super.dispose();
     }

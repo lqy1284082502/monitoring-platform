@@ -1,15 +1,17 @@
 import { useThreeScene } from '@/hooks/useThreeScene';
 import './index.less';
 
-interface ThreeSceneInstance {
+export interface ThreeSceneInstance {
     init: () => void | Promise<void>;
     dispose?: () => void;
     onWindowResize?: () => void;
     useStats?: () => void;
 }
 
+export type SceneConstructor<T extends ThreeSceneInstance = ThreeSceneInstance> = new (container: HTMLDivElement) => T;
+
 interface ThreeDemoProps<T extends ThreeSceneInstance> {
-    Scene: new (container: HTMLDivElement) => T;
+    Scene: SceneConstructor<T>;
     stats?: boolean;
 }
 

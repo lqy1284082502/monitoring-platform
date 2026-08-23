@@ -20,10 +20,14 @@ export class IonAnimation extends ThreeScene {
         this.getRandom(geometry);
         this.randomPoints = geometry.getAttribute('position');
         this.cubeGeometry = new THREE.BoxGeometry(40, 40, 40, 6, 6, 6);
+        this.registerCleanup(() => this.cubeGeometry?.dispose());
         this.intervalId = window.setInterval(() => {
             this.counter++;
             this.combineCube(geometry);
         }, 10000);
+        this.registerCleanup(() => {
+            if (this.intervalId !== undefined) window.clearInterval(this.intervalId);
+        });
         const materials = [];
         const texture = new THREE.TextureLoader().load(publicUrl('textures/109951164579600342.png'));
         materials[0] = new THREE.PointsMaterial({
@@ -75,7 +79,7 @@ export class IonAnimation extends ThreeScene {
             tween[i].start();
         }
     }
-    public animate() {
+    protected update() {
         TWEEN.update();
         const time = Date.now() * 0.00005;
         for (let i = 0; i < this.scene.children.length; i++) {
@@ -84,13 +88,5 @@ export class IonAnimation extends ThreeScene {
                 object.rotation.y = time * (i < 4 ? i + 1 : -(i + 1));
             }
         }
-        this.animateFrame = requestAnimationFrame(this.animate.bind(this));
-        this.renderer.render(this.scene, this.camera);
-    }
-
-    public dispose() {
-        if (this.intervalId !== undefined) window.clearInterval(this.intervalId);
-        this.cubeGeometry?.dispose();
-        super.dispose();
     }
 }

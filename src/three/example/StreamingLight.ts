@@ -56,12 +56,7 @@ export class StreamingLight extends ThreeScene {
             this.textureArray.push(texture);
         });
     }
-    public animate() {
-        this.animateFrame = requestAnimationFrame(this.animate.bind(this));
-        this.renderer.render(this.scene, this.camera);
-        this.labelRender.render(this.scene, this.camera);
-        this.controls && this.controls.update();
-        this.stats && this.stats.update();
+    protected update() {
         if (this.textureArray?.length) {
             this.textureArray.forEach((texture) => {
                 texture.offset.x -= Math.random() / 200;

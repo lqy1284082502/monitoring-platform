@@ -1,8 +1,8 @@
 import { lazy } from 'react';
-import { RouteObjectIncludesMeta } from '@/types/global';
-import { configData } from '@/conf/configData';
+import type { RouteObject } from 'react-router-dom';
+import { demoRegistry } from '@/conf/demoRegistry';
 
-export const routeConfiguration: RouteObjectIncludesMeta[] = [
+export const routeConfiguration: RouteObject[] = [
     {
         path: '/',
         children: [
@@ -14,14 +14,14 @@ export const routeConfiguration: RouteObjectIncludesMeta[] = [
     },
     {
         path: '/item',
-        children: configData.map((item) => ({
+        children: demoRegistry.map((item) => ({
             path: item.path,
-            Component: lazy(() => import(`@/page/example/${item.componentName}/index.tsx`)),
+            Component: item.Component,
         })),
     },
     {
         path: '/dev',
-        Component: lazy(() => import('@/page/example/lightMapping')),
+        Component: demoRegistry[1]!.Component,
     },
     {
         path: '*',

@@ -5,7 +5,6 @@ import { publicUrl } from '@/utils/publicUrl';
 
 export class MapAnimation extends ThreeScene {
     private arrowAni: TextureAnimator | null = null;
-    private clock = new THREE.Clock();
     constructor(dom: HTMLElement) {
         super(dom);
         this.loadHDRI(publicUrl('textures/gainmap/spruit_sunrise_4k.jpg')).catch(() => undefined);
@@ -22,12 +21,7 @@ export class MapAnimation extends ThreeScene {
         this.scene.add(arrow);
     }
 
-    // 重写父类的animate方法
-    public animate() {
-        const delta = this.clock?.getDelta() ?? 0;
-        this.arrowAni && this.arrowAni.update(delta * 1000);
-        this.animateFrame = requestAnimationFrame(this.animate.bind(this));
-        this.renderer.render(this.scene, this.camera);
-        this.stats?.update();
+    protected update(delta: number) {
+        this.arrowAni?.update(delta * 1000);
     }
 }

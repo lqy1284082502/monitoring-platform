@@ -17,18 +17,14 @@ export class HDRLoad extends ThreeScene {
             roughness: 0.0,
         });
         const cube = new THREE.Mesh(geometry, material);
-        this.cubeList.push(cube);
         this.scene.add(cube);
     }
 
-    // 重写父类的animate方法
-    animate() {
-        this.animateFrame = requestAnimationFrame(this.animate.bind(this));
-        this.cubeList.forEach((cube) => {
+    protected update() {
+        this.scene.children.forEach((cube) => {
+            if (!(cube instanceof THREE.Mesh)) return;
             cube.rotation.x += 0.005;
             cube.rotation.y += 0.005;
         });
-        this.renderer.render(this.scene, this.camera);
-        this.stats?.update();
     }
 }

@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 
 export default class TextureAnimator {
-    private readonly tilesHoriz: any;
-    private readonly tilesVert: any;
-    private readonly numTiles: any;
-    private readonly tileDisplayDuration: any;
-    private currentDisplayTime: any;
-    private currentTile: any;
-    private texture: any;
+    private readonly tilesHoriz: number;
+    private readonly tilesVert: number;
+    private readonly numTiles: number;
+    private readonly tileDisplayDuration: number;
+    private currentDisplayTime: number;
+    private currentTile: number;
+    private readonly texture: THREE.Texture;
 
-    constructor(texture: any, tilesHoriz: any, tilesVert: any, numTiles: any, tileDispDuration: any) {
+    constructor(texture: THREE.Texture, tilesHoriz: number, tilesVert: number, numTiles: number, tileDispDuration: number) {
         this.tilesHoriz = tilesHoriz;
         this.tilesVert = tilesVert;
         this.numTiles = numTiles;
@@ -20,12 +20,12 @@ export default class TextureAnimator {
         this.currentTile = 0;
         this.texture = texture;
     }
-    update(milliSec: any) {
+    update(milliSec: number) {
         this.currentDisplayTime += milliSec;
         while (this.currentDisplayTime > this.tileDisplayDuration) {
             this.currentDisplayTime -= this.tileDisplayDuration;
             this.currentTile++;
-            if (this.currentTile == this.numTiles) {
+            if (this.currentTile === this.numTiles) {
                 this.currentTile = 0;
             }
             const currentColumn = this.currentTile % this.tilesHoriz;

@@ -57,9 +57,7 @@ export class EarthSweep extends ThreeScene {
         const sphere = new THREE.Mesh(geometry, this.housingMaterial);
         this.scene.add(sphere);
     }
-    // 重写父类的animate方法
-    public animate() {
-        super.animate();
+    protected update() {
         if (this.housingMaterial) {
             if (this.housingMaterial.uniforms.iTime.value > 1) this.housingMaterial.uniforms.iTime.value = 0;
             else this.housingMaterial.uniforms.iTime.value += 0.005;
