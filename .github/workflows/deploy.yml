@@ -58,7 +58,7 @@ jobs:
         run: |
           test -n "$DEPLOY_API_TOKEN"
           tar -C dist -czf site.tar.gz .
-          curl --fail-with-body --silent --show-error --retry 3 --connect-timeout 10 --max-time 120 \
+          curl --fail-with-body --silent --show-error --retry 3 --connect-timeout 10 --max-time 900 \
             -X POST "https://lqycustomsite.online/deployment-hook/projects/monitoring-platform/releases/${TAG}" \
             -H "Authorization: Bearer ${DEPLOY_API_TOKEN}" \
             -H "X-Deployment-Commit: ${SHA}" \
